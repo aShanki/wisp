@@ -105,6 +105,7 @@ private slots:
     void rapidSearch();
     void listKeys();
     void shell();
+    void notificationWindowState();
     void searchOpensChat();
     void sendText();
     void reply();
@@ -329,6 +330,55 @@ void UiTest::shell()
     click(named(root, u"navChats"_s));
     QVERIFY(m_chatView->isVisible());
     QVERIFY(m_chatView->hasActiveFocus());
+}
+
+void UiTest::notificationWindowState()
+{
+    const QSize originalSize = m_window->size();
+    const auto originalVisibility = m_window->visibility();
+    auto *rpc = RpcClient::instance();
+    const auto activate = [&] {
+        QTest::ignoreMessage(QtWarningMsg, "This plugin does not support raise()");
+        emit rpc->openChatRequested(QString());
+        frame();
+    };
+
+    m_window->showMaximized();
+    QTRY_COMPARE(m_window->visibility(), QWindow::Maximized);
+    frame();
+    const QSize maximizedSize = m_window->size();
+    activate();
+    QCOMPARE(m_window->visibility(), QWindow::Maximized);
+    QCOMPARE(m_window->size(), maximizedSize);
+
+    for (bool minimized : {true, false}) {
+        if (minimized) m_window->showMinimized();
+        else m_window->hide();
+        frame();
+        activate();
+        QTRY_COMPARE(m_window->visibility(), QWindow::Maximized);
+        QCOMPARE(m_window->size(), maximizedSize);
+    }
+
+    m_window->showNormal();
+    m_window->resize(QSize(1000, 640));
+    frame();
+    activate();
+    QCOMPARE(m_window->visibility(), QWindow::Windowed);
+    QCOMPARE(m_window->size(), QSize(1000, 640));
+    m_window->showMinimized();
+    frame();
+    activate();
+    QTRY_COMPARE(m_window->visibility(), QWindow::Windowed);
+    QCOMPARE(m_window->size(), QSize(1000, 640));
+
+    m_window->showFullScreen();
+    frame();
+    activate();
+    QCOMPARE(m_window->visibility(), QWindow::FullScreen);
+    m_window->setVisibility(originalVisibility);
+    m_window->resize(originalSize);
+    frame();
 }
 
 void UiTest::openBigChat()

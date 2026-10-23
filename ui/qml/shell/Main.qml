@@ -13,12 +13,25 @@ ApplicationWindow {
     property string selfJid
     property string selfName
     property bool showSettings: false
+    property int restoreVisibility: Window.Windowed
+
+    onVisibilityChanged: function(visibility) {
+        if (visibility !== Window.Hidden && visibility !== Window.Minimized)
+            restoreVisibility = visibility
+    }
+
+    function reveal() {
+        if (!visible || visibility === Window.Minimized)
+            visibility = restoreVisibility
+        raise()
+        requestActivate()
+    }
 
     width: geometry.width
     height: geometry.height
     minimumWidth: 760
     minimumHeight: 480
-    visible: true
+    visibility: Window.Windowed
     title: "Wisp"
     color: Theme.panel
 
@@ -69,9 +82,7 @@ ApplicationWindow {
                 Conversation.open(jid)
                 chat.forceActiveFocus()
             }
-            window.show()
-            window.raise()
-            window.requestActivate()
+            window.reveal()
         }
         function onErrorOccurred(message) { toast.show(message) }
     }

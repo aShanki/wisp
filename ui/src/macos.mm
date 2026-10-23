@@ -19,9 +19,7 @@
 
 @implementation WispDesktop
 - (void)show {
-    self.window->show();
-    self.window->raise();
-    self.window->requestActivate();
+    QMetaObject::invokeMethod(self.window, "reveal");
     [NSApp activateIgnoringOtherApps:YES];
 }
 - (void)quit {
@@ -89,8 +87,9 @@ class MacWindowEvents : public QObject {
 public:
     explicit MacWindowEvents(QQuickWindow *window) : QObject(window), m_window(window) {}
     bool eventFilter(QObject *watched, QEvent *event) override {
-        if (watched == qApp && event->type() == QEvent::ApplicationActivate && !m_window->isVisible())
-            m_window->show();
+        if (watched == qApp && event->type() == QEvent::ApplicationActivate
+            && (!m_window->isVisible() || m_window->visibility() == QWindow::Minimized))
+            QMetaObject::invokeMethod(m_window, "reveal");
         return false;
     }
 private:
