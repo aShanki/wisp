@@ -104,7 +104,7 @@ Item {
     readonly property real dayH: (firstOfDay ? 36 : 0) + (unreadMark ? 46 : 0)
     readonly property real gap: firstInGroup ? 12 : 2
     implicitHeight: dayH + gap + (isSystem ? system.height + 4
-        : bubble.height + (reactionsLoader.active ? 18 : 0))
+        : bubble.height + (reactionsLoader.active ? 26 : 0))
 
     Loader {
         active: root.firstOfDay
@@ -341,23 +341,43 @@ Item {
     Loader {
         id: reactionsLoader
         active: !root.isSystem && !root.isDeleted && root.reactions.length > 0
-        x: root.fromMe ? bubble.x + bubble.width - width - 8 : bubble.x + 8
+        // WhatsApp Web's pill: 6 px in from the bubble's edge, over its last 4 px.
+        x: root.fromMe ? bubble.x + bubble.width - width - 6 : bubble.x + 6
         y: bubble.y + bubble.height - 4
         sourceComponent: Rectangle {
             readonly property int total: root.reactions.reduce((n, r) => n + r.count, 0)
-            width: emojis.implicitWidth + 12
-            height: 22
-            radius: 11
-            color: root.fromMe ? Theme.bubbleOut : Theme.bubbleIn
+            width: emojis.width + (count.visible ? count.implicitWidth + 7 : 0) + 10
+            height: 26
+            radius: 13
+            color: Theme.bubbleIn
             border.width: 1
             border.color: Theme.conversation
-            Text {
+            // Each emoji takes a 20 px cell, as Web's emoji images do.
+            Row {
                 id: emojis
-                anchors.centerIn: parent
-                text: root.reactions.map(r => r.emoji).join("") + (parent.total > 1 ? " " + parent.total : "")
-                textFormat: Text.PlainText
+                x: 5
+                anchors.verticalCenter: parent.verticalCenter
+                Repeater {
+                    model: root.reactions
+                    Text {
+                        required property var modelData
+                        width: 20
+                        horizontalAlignment: Text.AlignHCenter
+                        text: modelData.emoji
+                        textFormat: Text.PlainText
+                        color: Theme.text
+                        font.pixelSize: 16
+                    }
+                }
+            }
+            Text {
+                id: count
+                visible: parent.total > 1
+                x: emojis.x + emojis.width + 4
+                anchors.verticalCenter: parent.verticalCenter
+                text: parent.total
                 color: Theme.bubbleMeta
-                font.pixelSize: 13
+                font.pixelSize: 14
             }
         }
     }
