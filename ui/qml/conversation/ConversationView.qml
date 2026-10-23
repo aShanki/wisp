@@ -92,8 +92,11 @@ Rectangle {
         topMargin: 8
         bottomMargin: 8
 
-        // Follows the newest message unless the user scrolled up.
+        // Follows the newest message unless the user scrolled up. A resize,
+        // such as the composer growing, moves contentY before onHeightChanged
+        // runs; that move is not the user's, so it keeps the view pinned.
         property bool pinned: true
+        property real laidOutHeight: 0
         function updatePinned() {
             const newest = itemAtIndex(0)
             pinned = count === 0 || newest !== null && newest.y + newest.height - contentY <= height + 1
@@ -102,12 +105,16 @@ Rectangle {
         onMovementStarted: pinned = false
         onMovementEnded: updatePinned()
         onContentYChanged: {
-            if (!moving)
+            if (!moving && height === laidOutHeight)
                 updatePinned()
             view.maybeLoadOlder()
             hover.target = null
         }
-        onHeightChanged: if (pinned) positionViewAtBeginning()
+        onHeightChanged: {
+            if (pinned)
+                positionViewAtBeginning()
+            laidOutHeight = height
+        }
         onContentHeightChanged: if (pinned && !moving) positionViewAtBeginning()
 
         delegate: MessageDelegate {

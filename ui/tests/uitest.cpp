@@ -1059,8 +1059,19 @@ void UiTest::composerReply()
     key(Qt::Key_A, Qt::ControlModifier);
     key(Qt::Key_Backspace);
 
+    // The conversation keeps following the newest message as the composer grows.
+    QQuickItem *list = findView(root, m_conv->messages());
+    QMetaObject::invokeMethod(list->parentItem(), "scrollToBottom");
+    frame();
+    const auto newestShows = [list] {
+        QQuickItem *newest = itemAt(list, 0);
+        return newest && list->property("pinned").toBool()
+            && newest->y() + newest->height() - list->property("contentY").toReal() <= list->height() + 1;
+    };
+    QTRY_VERIFY(newestShows());
     m_conv->startReply(m_conv->messages()->index(0, 0).data(MessageModel::MsgIdRole).toString());
     QTRY_VERIFY(quote->isVisible() && cancel->isVisible());
+    QTRY_VERIFY(newestShows());
     const QSize size = m_window->size();
     for (const QSize window : {size, m_window->minimumSize()}) {
         m_window->resize(window);
