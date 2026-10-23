@@ -96,7 +96,7 @@ Item {
     readonly property real innerW: isVisual ? contentMax : Math.min(contentMax, Math.max(
         showSender ? sender.implicitWidth : 0,
         quote.item ? quote.item.implicitWidth - 10 : 0,
-        file.active ? file.implicitWidth : 0,
+        file.item ? file.item.implicitWidth - 10 : 0,
         hasBody ? body.implicitWidth + bodyIndent : 0,
         meta.width))
 
@@ -158,9 +158,11 @@ Item {
         readonly property real senderH: root.showSender ? 22 : 0
         // The quote overlaps the padding: 3 px from the top, or 5 px under the sender.
         readonly property real quoteY: root.showSender ? root.padT + senderH + 5 : 3
+        // Media sits 3 px inside the bubble, or 5 px under the sender.
         readonly property real mediaY: root.hasQuote ? quoteY + quote.height + 6
-            : root.isVisual && !root.showSender ? 3 : root.padT + senderH
-        readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 7 : root.isFile ? file.height + 4 : 0)
+            : root.isVisual || root.isFile && !root.isAudio ? (root.showSender ? root.padT + senderH + 5 : 3)
+            : root.padT + senderH
+        readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 7 : root.isFile ? file.height + 7 : 0)
         x: root.fromMe ? root.width - root.sideEnd - width : root.sideStart
         y: root.dayH + root.gap
         width: root.isVisual ? root.imageW + 2 * pad : root.innerW + root.padL + root.padR
@@ -168,6 +170,7 @@ Item {
               : root.hasBody ? bodyY + body.height + root.padB + (root.isDeleted ? 4 : 0)
               : root.isVisual ? mediaY + root.imageH + pad
               : root.isAudio ? mediaY + file.height + 4
+              : root.isFile ? mediaY + file.height + 25
               : bodyY + meta.height + root.padB - 4
         radius: 7.5
         topLeftRadius: root.tail && !root.fromMe ? 0 : 7.5
@@ -235,8 +238,8 @@ Item {
             active: root.isFile
             x: root.padL - 6
             y: bubble.mediaY
-            width: root.innerW + 10
             sourceComponent: MessageFile {
+                width: root.innerW + 10
                 msgId: root.msgId
                 type: root.type
                 fileName: root.mediaFileName

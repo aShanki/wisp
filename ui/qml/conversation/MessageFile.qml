@@ -17,9 +17,11 @@ Rectangle {
     readonly property string detail: loading ? "Loading…"
         : [ext, size > 0 ? Format.fileSize(size) : ""].filter(s => s !== "").join(" • ")
 
-    implicitWidth: audio ? 280 : Math.max(240, 62 + Math.min(260, name.implicitWidth))
-    height: audio ? 46 : 62
-    radius: 7.5
+    // A document is WhatsApp Web's card: 330 px, 13 px above and below
+    // the 26 x 30 icon and the name with its details.
+    implicitWidth: audio ? 290 : 330
+    height: audio ? 46 : 26 + Math.max(30, name.lineCount * 19 + 21)
+    radius: audio ? 7.5 : 6
     color: audio ? "transparent" : Theme.quote
 
     // Voice: a play button, a track and the duration.
@@ -62,34 +64,40 @@ Rectangle {
     // Document: an icon, the name and its type and size.
     Icon {
         visible: !root.audio
-        x: 12
-        anchors.verticalCenter: parent.verticalCenter
+        x: 13
+        y: 10
         name: visible ? "description" : ""
-        size: 34
+        size: 36
         color: Theme.senderColor(3)
     }
     Text {
         id: name
         visible: !root.audio
-        x: 52
+        x: 55
         y: 12
-        width: parent.width - 62
-        text: root.fileName !== "" ? root.fileName : "Document"
+        width: parent.width - x - 29
+        text: root.fileName !== "" ? root.fileName : "Untitled"
         textFormat: Text.PlainText
-        elide: Text.ElideMiddle
+        wrapMode: Text.WrapAnywhere
+        maximumLineCount: 2
+        elide: Text.ElideRight
         color: Theme.text
         font.pixelSize: 14
+        lineHeight: 19
+        lineHeightMode: Text.FixedHeight
     }
     Text {
         visible: !root.audio
-        x: 52
-        y: 33
-        width: parent.width - 62
+        x: name.x
+        y: 11 + name.lineCount * 19 + 3
+        width: name.width
+        height: 15
+        verticalAlignment: Text.AlignVCenter
         text: root.detail
         textFormat: Text.PlainText
         elide: Text.ElideRight
         color: Theme.bubbleMeta
-        font.pixelSize: 12
+        font.pixelSize: 11
     }
 
     MouseArea {
