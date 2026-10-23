@@ -19,5 +19,9 @@ inline QFont applicationFont(const QString &directory = {})
         if (!families.isEmpty())
             family = families.first();
     }
+    // Roboto is a variable font: QML sets weights on its wght axis, which
+    // FreeType would otherwise embolden a second time.
+    if (family != QLatin1String("Arial"))
+        qputenv("QT_NO_SYNTHESIZED_BOLD", "1");
     return QFont(family);
 }

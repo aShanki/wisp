@@ -25,6 +25,7 @@ Rectangle {
         color: button.primary ? Theme.accentText : Theme.accentStrong
         font.pixelSize: 14
         font.weight: Font.Medium
+        font.variableAxes: ({ wght: Font.Medium })
     }
     MouseArea {
         id: mouse

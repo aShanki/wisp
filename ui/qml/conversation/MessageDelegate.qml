@@ -113,6 +113,7 @@ Item {
         sourceComponent: Chip {
             text: root.dayLabel
             font.weight: 545
+            font.variableAxes: ({ wght: 545 })
         }
     }
     Loader {
@@ -201,6 +202,7 @@ Item {
             color: Theme.senderColor(root.senderColor)
             font.pixelSize: 13
             font.weight: Font.Medium
+            font.variableAxes: ({ wght: Font.Medium })
             elide: Text.ElideRight
         }
         Loader {

@@ -72,6 +72,7 @@ FocusScope {
             color: chip.selected ? Theme.chipText : Theme.textMuted
             font.pixelSize: 14
             font.weight: Font.Medium
+            font.variableAxes: ({ wght: Font.Medium })
         }
         MouseArea {
             id: chipMouse
@@ -104,6 +105,7 @@ FocusScope {
             color: Theme.text
             font.pixelSize: Theme.fontSizeTitle
             font.weight: Font.Bold
+            font.variableAxes: ({ wght: Font.Bold })
         }
         IconButton {
             id: menuButton

@@ -71,6 +71,7 @@ Rectangle {
             color: Theme.text
             font.pixelSize: 15
             font.weight: Font.Medium
+            font.variableAxes: ({ wght: Font.Medium })
         }
         Text {
             width: parent.width

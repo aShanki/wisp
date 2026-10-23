@@ -45,6 +45,7 @@ Rectangle {
         color: root.accent
         font.pixelSize: 13
         font.weight: Font.Medium
+        font.variableAxes: ({ wght: Font.Medium })
         elide: Text.ElideRight
     }
     Text {

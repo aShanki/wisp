@@ -158,6 +158,7 @@ Rectangle {
             color: Theme.text
             font.pixelSize: Theme.fontSizeTitle
             font.weight: Font.Bold
+            font.variableAxes: ({ wght: Font.Bold })
         }
     }
 

@@ -34,6 +34,7 @@ Rectangle {
         color: Theme.text
         font.pixelSize: Theme.fontSizeLarge
         font.weight: Theme.dark ? Font.DemiBold : Font.Normal
+        font.variableAxes: ({ wght: Theme.dark ? Font.DemiBold : Font.Normal })
         elide: Text.ElideRight
     }
     Text {

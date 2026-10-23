@@ -103,6 +103,7 @@ Rectangle {
             color: Theme.accentStrong
             font.pixelSize: 18
             font.weight: Font.Bold
+            font.variableAxes: ({ wght: Font.Bold })
         }
     }
 
@@ -136,6 +137,7 @@ Rectangle {
                     color: Theme.text
                     font.pixelSize: 32
                     font.weight: Font.Light
+                    font.variableAxes: ({ wght: Font.Light })
                 }
                 Column {
                     width: parent.width

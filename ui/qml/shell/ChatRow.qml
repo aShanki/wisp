@@ -83,6 +83,7 @@ Item {
         color: row.unread > 0 && !row.muted ? Theme.accent : Theme.textMuted
         font.pixelSize: Theme.fontSizeSmall
         font.weight: row.unread > 0 ? Font.Medium : Font.Normal
+        font.variableAxes: ({ wght: row.unread > 0 ? Font.Medium : Font.Normal })
     }
 
     Icon {
@@ -160,6 +161,7 @@ Item {
                 color: row.muted ? Theme.textMuted : Theme.accentText
                 font.pixelSize: Theme.fontSizeSmall
                 font.weight: Font.DemiBold
+                font.variableAxes: ({ wght: Font.DemiBold })
             }
         }
         Icon {

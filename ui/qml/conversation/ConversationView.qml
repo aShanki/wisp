@@ -248,6 +248,7 @@ Rectangle {
                 color: Theme.accentText
                 font.pixelSize: 11
                 font.weight: Font.DemiBold
+                font.variableAxes: ({ wght: Font.DemiBold })
             }
         }
         MouseArea {
