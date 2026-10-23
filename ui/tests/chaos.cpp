@@ -1370,7 +1370,7 @@ QList<std::pair<QString, QString>> Chaos::compareChats(const QJsonArray &chats) 
     }
 
     if (!m_conv->jid().isEmpty()) {
-        QQuickItem *header = named(root(), u"chatName"_s);
+        QQuickItem *header = named(root(), u"headerName"_s);
         const QString shownName = header ? header->property("text").toString() : QString();
         const ChatListModel::Chat *c = m_chats->chat(m_conv->jid());
         const QString listed = c ? c->name : QString();

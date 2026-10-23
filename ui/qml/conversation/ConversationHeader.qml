@@ -1,6 +1,6 @@
 // The open chat's header, as in WhatsApp: avatar, name and status on the
 // left; a voice-call button (1:1 chats, when the daemon offers calls) and the
-// menu on the right.
+// menu on the right. Its shadow is drawn by ConversationView, over the messages.
 import QtQuick
 import Wisp
 
@@ -19,48 +19,56 @@ Rectangle {
         source: Conversation.jid !== "" ? "image://wisp/avatar/" + Conversation.jid : ""
     }
 
-    Column {
-        anchors.left: avatar.right
-        anchors.leftMargin: 12
-        anchors.right: actions.left
-        anchors.rightMargin: 12
-        anchors.verticalCenter: parent.verticalCenter
-        Text {
-            objectName: "chatName"
-            width: parent.width
-            text: Conversation.name
-            textFormat: Text.PlainText
-            color: Theme.text
-            font.pixelSize: Theme.fontSizeLarge
-            font.weight: Font.Medium
-            elide: Text.ElideRight
-        }
-        Text {
-            width: parent.width
-            visible: text !== ""
-            text: Conversation.subtitle
-            textFormat: Text.PlainText
-            color: Theme.textMuted
-            font.pixelSize: 13
-            elide: Text.ElideRight
-        }
+    // WhatsApp Web's title block: a 21 px name line and a 20 px status line,
+    // centred together, 15 px after the avatar.
+    Text {
+        id: title
+        objectName: "headerName"
+        x: avatar.x + avatar.width + 15
+        y: subtitle.visible ? 11 : 21
+        width: actions.x - 16 - x
+        height: 21
+        verticalAlignment: Text.AlignVCenter
+        text: Conversation.name
+        textFormat: Text.PlainText
+        color: Theme.text
+        font.pixelSize: Theme.fontSizeLarge
+        font.weight: Theme.dark ? Font.DemiBold : Font.Normal
+        elide: Text.ElideRight
+    }
+    Text {
+        id: subtitle
+        objectName: "chatSubtitle"
+        x: title.x
+        y: title.y + 21
+        width: title.width
+        height: 20
+        verticalAlignment: Text.AlignVCenter
+        visible: text !== ""
+        text: Conversation.subtitle
+        textFormat: Text.PlainText
+        color: Theme.textMuted
+        font.pixelSize: 13
+        elide: Text.ElideRight
     }
 
     Row {
         id: actions
         anchors.right: parent.right
-        anchors.rightMargin: 12
+        anchors.rightMargin: 16
         anchors.verticalCenter: parent.verticalCenter
-        spacing: 4
+        spacing: 16
         IconButton {
             visible: Daemon.callsAvailable && !Conversation.isGroup
             name: "call"
+            color: Theme.text
             onClicked: Daemon.call("calls.start", {chat: Conversation.jid})
         }
         IconButton {
             id: menuButton
             objectName: "chatMenuButton"
             name: "more_vert"
+            color: Theme.text
             checked: chatMenu.visible
             onClicked: chatMenu.openFrom(menuButton, false, true)
         }
@@ -79,10 +87,4 @@ Rectangle {
         }
     }
 
-    Rectangle {
-        anchors.bottom: parent.bottom
-        width: parent.width
-        height: 1
-        color: Theme.divider
-    }
 }

@@ -114,6 +114,7 @@ Rectangle {
             width: list.width
             isGroup: Conversation.isGroup
             spaceWidth: view.nbsp
+            windowWidth: view.Window.width
             onImageClicked: (source, w, h) => {
                 viewer.active = true
                 const v = viewer.item as ImageViewer
@@ -149,6 +150,18 @@ Rectangle {
                 target = b && b.contains(b.mapFromItem(null, point.scenePosition)) ? item : null
             }
             onHoveredChanged: if (!hovered && !chevronHover.hovered) target = null
+        }
+    }
+
+    // The header's shadow (WhatsApp Web's 0 1px 4px at 12% black) falls on the messages.
+    Rectangle {
+        anchors.top: header.bottom
+        width: parent.width
+        height: 5
+        gradient: Gradient {
+            GradientStop { position: 0; color: Qt.rgba(0, 0, 0, 0.1) }
+            GradientStop { position: 0.4; color: Qt.rgba(0, 0, 0, 0.06) }
+            GradientStop { position: 1; color: "transparent" }
         }
     }
 

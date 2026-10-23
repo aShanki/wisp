@@ -30,7 +30,7 @@ QtObject {
     // Accents
     readonly property color accent: dark ? "#21c063" : "#1daa61"        // badges, unread time, switches
     readonly property color accentStrong: dark ? "#21c063" : "#1b8755"  // links, action text
-    readonly property color accentText: dark ? "#0a1014" : "#ffffff"    // on accent
+    readonly property color accentText: dark ? "#0a0a0a" : "#ffffff"    // on accent
     readonly property color chip: dark ? "#103529" : "#d9fdd3"          // selected filter chip
     readonly property color chipText: dark ? "#d9fdd3" : "#15603e"
     readonly property color badgeMuted: dark ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(0, 0, 0, 0.05)

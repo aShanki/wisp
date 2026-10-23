@@ -38,6 +38,7 @@ Item {
 
     property bool isGroup: false
     property real spaceWidth: 4
+    property real windowWidth: width
     signal imageClicked(string source, int w, int h)
 
     readonly property bool isSystem: type === "system"
@@ -61,9 +62,15 @@ Item {
     readonly property int bodyIndent: isDeleted ? 21 : 0
     readonly property Item bubbleItem: bubble
 
-    // Geometry, in WhatsApp Web's pixels.
-    readonly property int side: Math.round(Math.min(63, Math.max(12, width * 0.06)))
-    readonly property real maxBubble: (width - 2 * side) * (width >= 900 ? 0.65 : 0.85)
+    // Geometry, in WhatsApp Web's pixels. Its row padding and bubble width
+    // follow the window width: fixed sides in 1:1 chats, a share of the row
+    // in groups.
+    readonly property real groupSide: width * (0.05 + 0.005
+        * [800, 856, 912, 968, 1024, 1088, 1152, 1216, Infinity].findIndex(w => windowWidth <= w))
+    readonly property real sideStart: isGroup ? groupSide : windowWidth <= 968 ? 25 : 63
+    readonly property real sideEnd: isGroup ? groupSide : windowWidth <= 968 ? 19 : 63
+    readonly property real maxBubble: (width - sideStart - sideEnd)
+        * (windowWidth <= 900 ? 0.95 : windowWidth <= 1024 ? 0.85 : windowWidth <= 1300 ? 0.75 : 0.65)
     readonly property int padL: 9
     readonly property int padR: 7
     readonly property int padT: 6
@@ -80,7 +87,7 @@ Item {
     readonly property real contentMax: isVisual ? imageW - padL - padR + 6 : maxBubble - padL - padR
     readonly property real innerW: isVisual ? contentMax : Math.min(contentMax, Math.max(
         showSender ? sender.implicitWidth : 0,
-        quote.active ? quote.implicitWidth : 0,
+        quote.item ? quote.item.implicitWidth - 10 : 0,
         file.active ? file.implicitWidth : 0,
         hasBody ? body.implicitWidth + bodyIndent : 0,
         meta.width))
@@ -116,7 +123,7 @@ Item {
         visible: root.isSystem
         y: root.dayH + root.gap
         anchors.horizontalCenter: parent.horizontalCenter
-        maxWidth: root.width - 2 * root.side
+        maxWidth: root.width - root.sideStart - root.sideEnd
         text: visible ? root.richText : ""
     }
 
@@ -138,14 +145,16 @@ Item {
         visible: !root.isSystem
         readonly property real pad: root.isVisual && !root.bare ? 3 : 0
         readonly property real senderH: root.showSender ? 22 : 0
-        readonly property real quoteY: root.isVisual && !root.showSender ? 3 : root.padT + senderH
-        readonly property real mediaY: root.hasQuote ? quoteY + quote.height + 4 : quoteY
+        // The quote overlaps the padding: 3 px from the top, or 5 px under the sender.
+        readonly property real quoteY: root.showSender ? root.padT + senderH + 5 : 3
+        readonly property real mediaY: root.hasQuote ? quoteY + quote.height + 6
+            : root.isVisual && !root.showSender ? 3 : root.padT + senderH
         readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 4 : root.isFile ? file.height + 4 : 0)
-        x: root.fromMe ? root.width - root.side - width : root.side
+        x: root.fromMe ? root.width - root.sideEnd - width : root.sideStart
         y: root.dayH + root.gap
         width: root.isVisual ? root.imageW + 2 * pad : root.innerW + root.padL + root.padR
         height: root.bare ? (root.isVisual ? mediaY + root.imageH : bodyY + body.height) + meta.height + 2
-              : root.hasBody ? bodyY + body.height + root.padB - 2
+              : root.hasBody ? bodyY + body.height + root.padB
               : root.isVisual ? mediaY + root.imageH + pad
               : root.isAudio ? mediaY + file.height + 4
               : bodyY + meta.height + root.padB - 4
@@ -169,7 +178,7 @@ Item {
             id: sender
             visible: root.showSender
             x: root.padL
-            y: root.padT - 2
+            y: root.padT
             width: root.innerW
             height: 22
             verticalAlignment: Text.AlignVCenter
@@ -185,8 +194,10 @@ Item {
             active: root.hasQuote
             x: root.isVisual ? 3 : root.padL - 6
             y: bubble.quoteY
-            width: root.isVisual ? root.imageW : root.innerW + 12
-            sourceComponent: QuoteBlock { quote: root.replyTo }
+            sourceComponent: QuoteBlock {
+                width: root.isVisual ? root.imageW : root.innerW + 10
+                quote: root.replyTo
+            }
         }
         Loader {
             active: root.isVisual
@@ -230,15 +241,19 @@ Item {
             y: bubble.bodyY + 1
             sourceComponent: Icon { name: "block"; size: 17; color: Theme.bubbleMeta }
         }
-        // A run of no-break spaces reserves room for the time on the last line.
+        // A run of no-break spaces reserves room for the time on the last
+        // line: Web's spacer is the time at 11 px with 4 px either side.
+        // Qt sets fixed-height lines' text at their top, Web centres it in
+        // the 20 px line, hence the 2 px.
         Text {
             id: body
             visible: root.hasBody
             x: root.padL + root.bodyIndent
-            y: bubble.bodyY
+            y: bubble.bodyY + (root.bare ? 0 : 2)
             width: Math.min(root.innerW - root.bodyIndent, implicitWidth)
             text: !visible ? "" : root.bare ? root.bodyText
-                : mentionStyle + root.bodyText + " " + "&nbsp;".repeat(Math.ceil((meta.width + 4) / root.spaceWidth))
+                : mentionStyle + root.bodyText + " "
+                  + "&nbsp;".repeat(Math.round((meta.width + 5.5) / (root.spaceWidth + font.letterSpacing)) - 1)
             // StyledText underlines every link; WhatsApp's mentions are plain
             // coloured names, so their rare rows take RichText's CSS.
             readonly property string mentionStyle: root.hasMentions
@@ -249,7 +264,8 @@ Item {
             linkColor: Theme.link
             font.pixelSize: root.bare ? (root.emojiCount === 1 ? 64 : root.emojiCount === 2 ? 48 : 40) : 14
             font.italic: root.isDeleted
-            lineHeight: root.bare ? 1 : 19
+            font.letterSpacing: root.bare ? 0 : 0.16
+            lineHeight: root.bare ? 1 : 20
             lineHeightMode: root.bare ? Text.ProportionalHeight : Text.FixedHeight
             onLinkActivated: link => {
                 if (!link.startsWith("mention:"))
@@ -288,12 +304,14 @@ Item {
             height: 15
             spacing: 3
             readonly property color tint: root.metaOnImage ? "white" : Theme.bubbleMeta
+            // 12 px in a 16 px line on a 15 px row, as Web sets it.
             Text {
                 anchors.verticalCenter: parent.verticalCenter
+                anchors.verticalCenterOffset: 1
                 text: (root.edited && !root.isDeleted ? "Edited  " : "") + root.timeText
                 textFormat: Text.PlainText
                 color: meta.tint
-                font.pixelSize: 11
+                font.pixelSize: 12
             }
             Icon {
                 visible: root.fromMe && !root.isDeleted

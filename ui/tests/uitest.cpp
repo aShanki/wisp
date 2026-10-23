@@ -1027,8 +1027,9 @@ void UiTest::menuPlacement()
     QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
 }
 
-// A reply grows the composer upwards: the quote and its close button above
-// the input row, which keeps its height, with + centred on the last line.
+// A reply grows the composer upwards, as in WhatsApp Web: the quote card, its
+// close button 8 px inside its top right, then the input row, 12 px plus its
+// text and at least 52 px, with + and send 6 px inside its bottom corners.
 // Nothing clips with one line or five, in a large window or the smallest,
 // and the emoji suggestions stay in the window.
 void UiTest::composerReply()
@@ -1046,16 +1047,15 @@ void UiTest::composerReply()
     key(Qt::Key_Backspace);
     QVERIFY(!quote->isVisible());
     frame();
-    const qreal padding = input->property("topPadding").toReal() + input->property("bottomPadding").toReal();
-    const qreal emptyRow = field->height();
+    QCOMPARE(field->height(), 52.0);
     type(u"line 1"_s);
     frame();
-    const qreal row = field->height();
-    const qreal line = input->height() - padding;
+    QCOMPARE(field->height(), 52.0);
+    const qreal line = input->property("contentHeight").toReal();
     key(Qt::Key_Return, Qt::ShiftModifier);
     type(u"line 2"_s);
     frame();
-    const qreal advance = input->height() - padding - line;
+    const qreal advance = input->property("contentHeight").toReal() - line;
     key(Qt::Key_A, Qt::ControlModifier);
     key(Qt::Key_Backspace);
 
@@ -1065,7 +1065,7 @@ void UiTest::composerReply()
     for (const QSize window : {size, m_window->minimumSize()}) {
         m_window->resize(window);
         frame();
-        QTRY_COMPARE(sceneRect(field).right(), m_window->width() - 16.0);
+        QTRY_COMPARE(sceneRect(field).right(), m_window->width() - 12.0);
         for (const int lines : {1, 5}) {
             type(u"line 1"_s);
             for (int i = 2; i <= lines; ++i) {
@@ -1075,20 +1075,20 @@ void UiTest::composerReply()
             const auto laidOut = [&]() -> QString {
                 const QRectF f = sceneRect(field), q = sceneRect(quote), x = sceneRect(cancel), in = sceneRect(input);
                 const QRectF port = sceneRect(input->parentItem()->parentItem()); // what the scroll view shows
-                const qreal lastLine = in.bottom() - input->property("bottomPadding").toReal() - line / 2;
+                const qreal row = 12 + std::max(40.0, line + (lines - 1) * advance);
                 if (!QRectF(QPointF(), m_window->size()).contains(f))
                     return u"composer outside the window"_s;
                 if (in.height() < input->implicitHeight() || !port.adjusted(-0.5, -0.5, 0.5, 0.5).contains(in) || !f.contains(port))
                     return u"input clipped"_s;
                 if (!f.contains(q) || !f.contains(x) || q.bottom() > port.top() || x.bottom() > port.top())
                     return u"quote over the input"_s;
-                if (std::abs(f.bottom() - q.bottom() - (row + (lines - 1) * advance)) > 0.5)
+                if (std::abs(f.bottom() - q.bottom() - row) > 0.5)
                     return u"input row squeezed: actual %1, expected %2 (%3 lines, line %4, content %5)"_s
-                        .arg(f.bottom() - q.bottom()).arg(row + (lines - 1) * advance).arg(lines).arg(line)
+                        .arg(f.bottom() - q.bottom()).arg(row).arg(lines).arg(line)
                         .arg(input->property("contentHeight").toReal());
-                if (std::abs(x.center().y() - q.center().y()) > 0.5 || std::abs(q.left() - f.left() - (f.right() - x.right())) > 0.5)
+                if (std::abs(x.top() - q.top() - 8) > 0.5 || std::abs(q.right() - x.right() - 8) > 0.5)
                     return u"close button misplaced"_s;
-                if (std::abs(sceneRect(attach).center().y() - lastLine) > 1 || std::abs(sceneRect(attach).left() - q.left()) > 0.5)
+                if (std::abs(f.bottom() - sceneRect(attach).bottom() - 6) > 0.5 || std::abs(sceneRect(attach).left() - f.left() - 6) > 0.5)
                     return u"+ misplaced"_s;
                 return {};
             };
@@ -1114,7 +1114,7 @@ void UiTest::composerReply()
     QTest::mouseClick(m_window, Qt::LeftButton, {}, sceneRect(cancel).center().toPoint());
     QTRY_VERIFY(!quote->isVisible());
     QVERIFY(m_conv->replyTo().toMap().isEmpty());
-    QTRY_COMPARE(field->height(), emptyRow);
+    QTRY_COMPARE(field->height(), 52.0);
     QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
 }
 

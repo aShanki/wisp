@@ -51,54 +51,59 @@ Item {
         d.open()
     }
 
-    implicitHeight: field.height + 24
+    implicitHeight: field.height + 12
 
-    // Grows upwards: a reply's quote sits above the input row, which keeps
-    // one line's height and grows to six lines before it scrolls.
+    // WhatsApp Web's composer: a 52 px pill 12 px in from the sides and the
+    // bottom, its buttons and text 6 px inside. A reply's quote sits in a
+    // panel on top, and the input grows to eight lines before it scrolls.
     Rectangle {
         id: field
         objectName: "composerField"
-        x: 16
-        y: 8
-        width: root.width - 32
+        x: 12
+        width: root.width - 24
         readonly property bool replying: !!Conversation.replyTo && !Conversation.readOnly
         readonly property real pad: 6
-        readonly property real oneLine: fm.height + input.topPadding + input.bottomPadding + 4
-        readonly property real rowH: Math.min(Math.max(input.implicitHeight + 4, oneLine), oneLine + 5 * fm.height)
+        readonly property real rowH: Math.min(input.implicitHeight, Math.max(40, 8 * fm.height)) + 2 * pad
         height: (replying ? quote.y + quote.height : 0) + rowH
         radius: 26
+        topLeftRadius: replying ? 14 : 26
+        topRightRadius: topLeftRadius
         color: Theme.composer
-        border.width: 1
-        border.color: Theme.bubbleEdge
 
         QuoteBlock {
             id: quote
             objectName: "composerQuote"
             visible: field.replying
-            x: field.pad
-            y: field.pad
-            width: cancel.x - x - field.pad
+            x: 8
+            y: 8
+            width: field.width - 16
             quote: visible ? Conversation.replyTo : null
-            radius: 12
+            radius: 8
+            padTop: 7
+            padBottom: 10
+            padStart: 11
+            padEnd: 76
+            lines: 1
         }
         IconButton {
             id: cancel
             objectName: "cancelReply"
             visible: field.replying
-            x: field.width - width - field.pad
-            anchors.verticalCenter: quote.verticalCenter
+            x: quote.x + quote.width - width - 8
+            y: quote.y + 8
             name: "close"
+            color: Theme.text
             onClicked: Conversation.cancelReply()
         }
 
-        // The buttons stay centred on the last line.
         IconButton {
             id: attachButton
             objectName: "attachButton"
             x: field.pad
-            y: field.height - Math.round((field.oneLine + height) / 2)
+            y: field.height - field.pad - height
             enabled: !Conversation.readOnly
             name: "add"
+            color: Theme.text
             checked: attachMenu.visible
             onClicked: attachMenu.openFrom(attachButton, true, false)
         }
@@ -106,9 +111,8 @@ Item {
         ScrollView {
             anchors.left: attachButton.right
             anchors.right: sendButton.left
-            anchors.leftMargin: 4
-            y: field.height - field.rowH + 2
-            height: field.rowH - 4
+            y: field.height - field.rowH + field.pad
+            height: field.rowH - 2 * field.pad
             ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
 
             TextArea {
@@ -124,10 +128,11 @@ Item {
                 selectByMouse: true
                 selectionColor: Theme.highlight
                 selectedTextColor: Theme.text
-                leftPadding: 4
+                leftPadding: 0
                 rightPadding: 8
-                topPadding: 13
-                bottomPadding: 13
+                // One line sits in the middle of the 40 px row.
+                topPadding: Math.max(0, (40 - contentHeight) / 2)
+                bottomPadding: topPadding
                 background: null
 
                 onTextChanged: if (!root.restoring && text !== "") Conversation.userTyping()
@@ -161,7 +166,6 @@ Item {
             Icon {
                 anchors.centerIn: parent
                 name: "send"
-                size: 22
                 color: Theme.accentText
             }
             MouseArea {
