@@ -52,6 +52,20 @@ QtObject {
     readonly property var senderColors: dark
         ? ["#71eb85", "#53a6fd", "#fc9775", "#a791ff", "#fb5061", "#42c7b8", "#ffd279", "#ff72a1"]
         : ["#1b8755", "#007bfc", "#c4532d", "#5e47de", "#b80531", "#02a698", "#c58730", "#ff2e74"]
+    // Voice notes: waveform bars, the plain track used without a waveform,
+    // and the thumb and mic, green until played, then blue (grey on ours).
+    readonly property color voiceBar: dark ? "#636b70" : "#ced0d1"
+    readonly property color voiceBarMine: dark ? "#4d8d81" : "#b0ceae"
+    readonly property color voiceTrack: dark ? "#343f46" : "#e7e8e9"
+    readonly property color voiceTrackMine: dark ? "#176b5b" : "#c5e6c1"
+    readonly property color voiceNew: "#09d261"
+    readonly property color voiceNewTrack: dark ? "#63cb77" : "#4ada80"
+    readonly property color voiceThumbMine: dark ? "#d1d7db" : "#6f8171"
+    readonly property color voiceTrackThumbMine: dark ? "#599389" : "#8da78f"
+    readonly property color voicePlayed: dark ? "#53bdeb" : "#4fc3f7"
+    readonly property color voicePlayedTrack: dark ? "#49a1c8" : "#30b0e8"
+    readonly property color voicePlayedMine: dark ? "#43abcd" : "#29afdf"
+    readonly property color voiceMicMine: dark ? Qt.rgba(0.914, 0.929, 0.937, 0.4) : Qt.rgba(0.067, 0.106, 0.129, 0.7)
     function senderColor(i) { return i >= 0 ? senderColors[i % senderColors.length] : quoteMine }
 
     // WhatsApp's doodle tile, if installed (share/wisp/wallpaper-{light,dark}.png); "" draws `conversation`.

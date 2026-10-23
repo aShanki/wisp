@@ -18,7 +18,7 @@ const msgCols = `m.seq, m.chat, m.id, m.sender, m.push_name, m.from_me, m.ts, m.
 	m.reply_id, m.reply_sender, m.reply_from_me, m.reply_type, m.reply_preview,
 	m.lat IS NOT NULL, COALESCE(m.lat, 0), COALESCE(m.lng, 0), m.loc_name,
 	md.msg IS NOT NULL, COALESCE(md.mime, ''), COALESCE(md.size, 0), COALESCE(md.width, 0), COALESCE(md.height, 0),
-	COALESCE(md.duration, 0), COALESCE(md.file_name, ''), COALESCE(md.has_thumb, 0), COALESCE(md.path, ''),
+	COALESCE(md.duration, 0), COALESCE(md.file_name, ''), COALESCE(md.has_thumb, 0), COALESCE(md.path, ''), md.waveform,
 	COALESCE(sc.full_name, ''), COALESCE(sc.push_name, ''), COALESCE(sc.business_name, ''),
 	COALESCE(rc.full_name, ''), COALESCE(rc.push_name, ''), COALESCE(rc.business_name, ''),
 	` + mentionsCol
@@ -77,7 +77,7 @@ func scanMessage(sc rowScanner) (*api.Message, int64, error) {
 		&m.Edited, &m.Deleted, &m.Forwarded,
 		&replyID, &replySender, &replyFromMe, &replyType, &replyPreview,
 		&hasLoc, &lat, &lng, &locName,
-		&hasMedia, &mi.Mime, &mi.Size, &mi.Width, &mi.Height, &mi.Duration, &mi.FileName, &mi.HasThumb, &mi.Path,
+		&hasMedia, &mi.Mime, &mi.Size, &mi.Width, &mi.Height, &mi.Duration, &mi.FileName, &mi.HasThumb, &mi.Path, &mi.Waveform,
 		&sn.full, &sn.push, &sn.business, &rn.full, &rn.push, &rn.business, &mentions)
 	if err != nil {
 		return nil, 0, err
@@ -281,7 +281,7 @@ ORDER BY m.ts DESC, m.seq DESC LIMIT ?`, chat, ts, seq, limit+1)
 }
 
 func rankSQL(col string) string {
-	return `(CASE ` + col + ` WHEN 'error' THEN -1 WHEN 'pending' THEN 0 WHEN 'sent' THEN 1 WHEN 'delivered' THEN 2 WHEN 'read' THEN 3 ELSE 0 END)`
+	return `(CASE ` + col + ` WHEN 'error' THEN -1 WHEN 'pending' THEN 0 WHEN 'sent' THEN 1 WHEN 'delivered' THEN 2 WHEN 'read' THEN 3 WHEN 'played' THEN 4 ELSE 0 END)`
 }
 
 var upsertMsgSQL = `
@@ -369,8 +369,8 @@ func mentionsJSON(ms []api.Mention) string {
 
 const upsertMediaSQL = `
 INSERT INTO media(msg, mime, size, width, height, duration, file_name, has_thumb, path,
-	direct_path, url, media_key, file_sha256, file_enc_sha256, file_length, thumb)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	direct_path, url, media_key, file_sha256, file_enc_sha256, file_length, waveform, thumb)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(msg) DO UPDATE SET
 	mime        = CASE WHEN excluded.mime <> '' THEN excluded.mime ELSE mime END,
 	size        = CASE WHEN excluded.size <> 0 THEN excluded.size ELSE size END,
@@ -386,6 +386,7 @@ ON CONFLICT(msg) DO UPDATE SET
 	file_sha256     = COALESCE(excluded.file_sha256, file_sha256),
 	file_enc_sha256 = COALESCE(excluded.file_enc_sha256, file_enc_sha256),
 	file_length = CASE WHEN excluded.file_length <> 0 THEN excluded.file_length ELSE file_length END,
+	waveform    = COALESCE(excluded.waveform, waveform),
 	thumb       = COALESCE(excluded.thumb, thumb)`
 
 func blob(b []byte) any {
@@ -417,7 +418,7 @@ func mediaArgs(seq int64, m *api.Message) []any {
 	hasThumb := mi.HasThumb || len(m.Thumb) > 0
 	return []any{seq, mime, size, mi.Width, mi.Height, mi.Duration, fileName, b2i(hasThumb), mi.Path,
 		ref.DirectPath, ref.URL, blob(ref.MediaKey), blob(ref.FileSHA256), blob(ref.FileEncSHA256), int64(ref.FileLength),
-		blob(m.Thumb)}
+		blob(mi.Waveform), blob(m.Thumb)}
 }
 
 // stmts are the prepared statements used for bulk message ingestion.
@@ -606,7 +607,7 @@ func (s *Store) UpdateStatus(ctx context.Context, chat string, ids []string, sta
 	switch status {
 	case api.StatusError:
 		cond = `status IN ('pending', '')`
-	case api.StatusPending, api.StatusSent, api.StatusDelivered, api.StatusRead:
+	case api.StatusPending, api.StatusSent, api.StatusDelivered, api.StatusRead, api.StatusPlayed:
 		cond = fmt.Sprintf(`(status = '' OR %s < %d)`, rankSQL("status"), api.StatusRank(status))
 	default:
 		return nil, api.InvalidParams("unknown status %q", status)

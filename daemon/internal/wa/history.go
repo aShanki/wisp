@@ -90,8 +90,10 @@ func webStatus(s waWeb.WebMessageInfo_Status) string {
 		return api.StatusSent
 	case waWeb.WebMessageInfo_DELIVERY_ACK:
 		return api.StatusDelivered
-	case waWeb.WebMessageInfo_READ, waWeb.WebMessageInfo_PLAYED:
+	case waWeb.WebMessageInfo_READ:
 		return api.StatusRead
+	case waWeb.WebMessageInfo_PLAYED:
+		return api.StatusPlayed
 	}
 	return api.StatusSent
 }

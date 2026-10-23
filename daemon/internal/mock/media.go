@@ -223,6 +223,16 @@ func decodeFile(path string) (image.Image, error) {
 	return img, err
 }
 
+// waveform is a voice note's 64 levels (0-100), rising and falling like speech.
+func waveform(seed uint64) []byte {
+	w := make([]byte, 64)
+	for i := range w {
+		seed = seed*6364136223846793005 + 1442695040888963407
+		w[i] = byte(10 + 40*(1+math.Sin(float64(i)/5+float64(seed%7)))/2 + float64(seed>>59))
+	}
+	return w
+}
+
 // voice renders seconds of 8 kHz 8-bit mono WAV that sounds vaguely like speech.
 func voice(seed uint64, seconds int) []byte {
 	const rate = 8000

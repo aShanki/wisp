@@ -524,12 +524,15 @@ func TestMessageFieldsRoundTrip(t *testing.T) {
 		Location: &api.Location{Lat: -33.86, Lng: 151.21, Name: "Opera House"}}
 	put(t, s, loc, false)
 	voice := &api.Message{ID: "v", Chat: group, Sender: bob, Timestamp: 1002, Type: api.MsgVoice,
-		Media: &api.MediaInfo{Mime: "audio/ogg", Duration: 75}}
+		Media: &api.MediaInfo{Mime: "audio/ogg", Duration: 75, Waveform: []byte{0, 50, 100}}}
 	put(t, s, voice, false)
+	if v := mustMsg(t, s, group, "v"); !reflect.DeepEqual(v.Media.Waveform, []byte{0, 50, 100}) {
+		t.Errorf("waveform: %v", v.Media.Waveform)
+	}
 
 	m := mustMsg(t, s, group, "img")
 	want := api.MediaInfo{Mime: "image/jpeg", Size: 1234, Width: 640, Height: 480, HasThumb: true}
-	if m.Media == nil || *m.Media != want {
+	if m.Media == nil || !reflect.DeepEqual(*m.Media, want) {
 		t.Errorf("media: %+v", m.Media)
 	}
 	if !m.Forwarded || m.Text != "Look *here*" || m.Location != nil {
@@ -659,6 +662,8 @@ func TestUpdateStatus(t *testing.T) {
 		{api.StatusDelivered, api.StatusSent, api.StatusDelivered, false},
 		{api.StatusRead, api.StatusDelivered, api.StatusRead, false},
 		{api.StatusRead, api.StatusRead, api.StatusRead, false},
+		{api.StatusRead, api.StatusPlayed, api.StatusPlayed, true},
+		{api.StatusPlayed, api.StatusRead, api.StatusPlayed, false},
 		{api.StatusPending, api.StatusError, api.StatusError, true},
 		{api.StatusSent, api.StatusError, api.StatusSent, false},
 		{api.StatusRead, api.StatusError, api.StatusRead, false},

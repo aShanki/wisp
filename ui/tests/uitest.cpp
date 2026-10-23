@@ -122,6 +122,7 @@ private slots:
     void olderPages();
     void scrollMotion();
     void menuPlacement();
+    void voiceNote();
     void composerReply();
     void emojiSuggest();
     void mentionPicker();
@@ -1053,6 +1054,43 @@ void UiTest::menuPlacement()
     m_window->resize(size);
     QTRY_COMPARE(root->size(), QSizeF(size));
     QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+}
+
+// A voice note is WhatsApp Web's 336 px player: the waveform between the
+// play button and the sender's photo, which is right of theirs and left of
+// ours.
+void UiTest::voiceNote()
+{
+    QCOMPARE(m_conv->jid(), kBig);
+    QQuickItem *view = findView(m_window->contentItem(), m_conv->messages());
+    QVERIFY(view);
+    const auto voice = [](bool mine) {
+        return [mine](const QModelIndex &i) {
+            return i.data(MessageModel::TypeRole).toString() == "voice"_L1 && i.data(MessageModel::FromMeRole).toBool() == mine
+                && !i.data(MessageModel::MediaWaveformRole).toByteArray().isEmpty();
+        };
+    };
+    QString theirs, mine;
+    while ((theirs = deepMessage(voice(false))).isEmpty() || (mine = deepMessage(voice(true))).isEmpty()) {
+        QVERIFY(m_conv->hasMore());
+        const int before = m_conv->messages()->rowCount();
+        m_conv->loadOlder();
+        QTRY_VERIFY(!m_conv->loading() && m_conv->messages()->rowCount() > before);
+    }
+    for (const QString &id : {theirs, mine}) {
+        QQuickItem *row = scrollTo(view, id, sceneRect(view).center().y());
+        QVERIFY(row);
+        const bool fromMe = row->property("fromMe").toBool();
+        const QRectF bubble = sceneRect(bubbleOf(row));
+        QCOMPARE(bubble.size(), QSizeF(336, 67));
+        QQuickItem *waveform = nullptr;
+        for (QQuickItem *item : row->findChildren<QQuickItem *>())
+            if (item->inherits("Waveform"))
+                waveform = item;
+        QVERIFY(waveform && waveform->isVisible());
+        const QRectF w = sceneRect(waveform).translated(-bubble.topLeft());
+        QCOMPARE(w, fromMe ? QRectF(122, 19, 200, 24) : QRectF(60, 19, 192, 24));
+    }
 }
 
 // A reply grows the composer upwards, as in WhatsApp Web: the quote card, its

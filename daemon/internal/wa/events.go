@@ -375,6 +375,9 @@ func receiptStatus(r *events.Receipt) string {
 		if r.IsGroup {
 			return api.StatusDelivered
 		}
+		if r.Type == types.ReceiptTypePlayed {
+			return api.StatusPlayed
+		}
 		return api.StatusRead
 	}
 	return ""

@@ -21,7 +21,7 @@ func TestReceiptStatus(t *testing.T) {
 	}{
 		{types.ReceiptTypeDelivered, false, api.StatusDelivered},
 		{types.ReceiptTypeRead, false, api.StatusRead},
-		{types.ReceiptTypePlayed, false, api.StatusRead},
+		{types.ReceiptTypePlayed, false, api.StatusPlayed},
 		{types.ReceiptTypeDelivered, true, api.StatusDelivered},
 		{types.ReceiptTypeRead, true, api.StatusDelivered},
 		{types.ReceiptTypePlayed, true, api.StatusDelivered},

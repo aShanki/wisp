@@ -27,6 +27,8 @@ Item {
     required property int mediaWidth
     required property int mediaHeight
     required property int mediaDuration
+    required property var mediaWaveform
+    required property string sender
     required property string mediaFileName
     required property real mediaSize
     required property bool mediaLoading
@@ -189,14 +191,16 @@ Item {
         y: root.dayH + root.gap
         // Web's emoji block: 6 px above the images, 15 and 17 px beside them,
         // the image's line descent and 14 px below; a 19 px line holds the time.
+        // A voice note is 336 px, its player 6 px inside.
         width: root.isVisual ? root.imageW + 2 * pad : root.bareEmoji ? root.emojiBox + 45
+            : root.isAudio ? Math.min(336, root.maxBubble)
             : root.innerW + root.padL + root.padR
         height: root.bareEmoji ? root.emojiY + root.emojiBox + 38
               : root.bare ? mediaY + root.imageH + 21
               : root.bigEmoji ? bodyY + root.emojiBox + 52
               : root.hasBody ? bodyY + body.height + root.padB + (root.isDeleted ? 4 : 0)
               : root.isVisual ? mediaY + root.imageH + pad
-              : root.isAudio ? mediaY + file.height + 4
+              : root.isAudio ? mediaY + 61
               : root.isFile ? mediaY + file.height + 25
               : bodyY + meta.height + root.padB - 4
         radius: 7.5
@@ -241,7 +245,7 @@ Item {
         Text {
             id: sender
             visible: root.showSender
-            x: root.padL
+            x: root.isAudio ? 6 : root.padL
             y: root.bare ? 4 : root.padT
             width: root.innerW
             height: 22
@@ -285,19 +289,32 @@ Item {
             }
         }
         Loader {
+            active: root.isAudio
+            x: 6
+            y: bubble.mediaY
+            width: bubble.width - 12
+            sourceComponent: VoiceNote {
+                msgId: root.msgId
+                sender: root.sender
+                fromMe: root.fromMe
+                played: root.status === "played"
+                duration: root.mediaDuration
+                loading: root.mediaLoading
+                levels: root.mediaWaveform
+                fill: bubble.color
+            }
+        }
+        Loader {
             id: file
-            active: root.isFile
+            active: root.isFile && !root.isAudio
             x: root.padL - 6
             y: bubble.mediaY
             sourceComponent: MessageFile {
                 width: root.innerW + 10
                 msgId: root.msgId
-                type: root.type
                 fileName: root.mediaFileName
                 size: root.mediaSize
-                duration: root.mediaDuration
                 loading: root.mediaLoading
-                fromMe: root.fromMe
             }
         }
         Loader {
@@ -357,8 +374,9 @@ Item {
         }
         Row {
             id: meta
-            x: bubble.width - width - (root.metaOnImage ? 8 : root.padR)
-            y: bubble.height - height - (root.metaOnImage ? 6 : 3)
+            // A voice note's time clears their photo.
+            x: bubble.width - width - (root.metaOnImage ? 8 : root.isAudio && !root.fromMe ? 85 : root.padR)
+            y: bubble.height - height - (root.metaOnImage ? 6 : root.isAudio ? 4 : 3)
             height: 15
             spacing: 3
             readonly property color tint: root.metaOnImage ? "white" : Theme.bubbleMeta
@@ -377,7 +395,8 @@ Item {
                 size: 16
                 name: !visible ? "" : root.status === "pending" ? "schedule"
                     : root.status === "sent" ? "done" : root.status === "error" ? "error" : "done_all"
-                color: root.status === "read" ? Theme.read : root.status === "error" ? Theme.danger : meta.tint
+                color: root.status === "read" || root.status === "played" ? Theme.read
+                    : root.status === "error" ? Theme.danger : meta.tint
             }
         }
     }

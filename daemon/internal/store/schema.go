@@ -127,6 +127,10 @@ ALTER TABLE contacts DROP COLUMN phone;
 	`
 ALTER TABLE messages ADD COLUMN mentions TEXT NOT NULL DEFAULT ''; -- JSON [{"jid", "me"}], '' = none
 `,
+	// 4: voice note waveforms.
+	`
+ALTER TABLE media ADD COLUMN waveform BLOB; -- levels 0-100
+`,
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

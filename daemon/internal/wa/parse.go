@@ -436,6 +436,9 @@ func fillContent(msg *api.Message, m *waE2E.Message) *waE2E.ContextInfo {
 			typ = api.MsgVoice
 		}
 		setMedia(msg, typ, x, 0, 0, x.GetSeconds(), "", nil)
+		if w := x.GetWaveform(); len(w) <= 256 {
+			msg.Media.Waveform = w
+		}
 		return x.GetContextInfo()
 	case m.DocumentMessage != nil:
 		x := m.GetDocumentMessage()

@@ -92,6 +92,8 @@ QHash<int, QByteArray> MessageModel::roleNames() const
         {MediaWidthRole, "mediaWidth"},
         {MediaHeightRole, "mediaHeight"},
         {MediaDurationRole, "mediaDuration"},
+        {MediaWaveformRole, "mediaWaveform"},
+        {SenderRole, "sender"},
         {MediaFileNameRole, "mediaFileName"},
         {MediaSizeRole, "mediaSize"},
         {MediaLoadingRole, "mediaLoading"},
@@ -146,6 +148,8 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
     case MediaWidthRole: return m.width;
     case MediaHeightRole: return m.height;
     case MediaDurationRole: return m.duration;
+    case MediaWaveformRole: return m.waveform;
+    case SenderRole: return m.sender;
     case MediaFileNameRole: return m.fileName;
     case MediaSizeRole: return m.size;
     case MediaLoadingRole: return m.mediaLoading;
@@ -220,6 +224,7 @@ MessageModel::Msg MessageModel::parse(const QJsonObject &o)
         m.duration = md["duration"_L1].toInt();
         m.fileName = md["fileName"_L1].toString();
         m.path = md["path"_L1].toString();
+        m.waveform = QByteArray::fromBase64(md["waveform"_L1].toString().toLatin1());
     }
     return m;
 }
@@ -323,6 +328,7 @@ void MessageModel::replace(int row, Msg &&n)
     if (n.width != m.width) roles << MediaWidthRole;
     if (n.height != m.height) roles << MediaHeightRole;
     if (n.duration != m.duration) roles << MediaDurationRole;
+    if (n.waveform != m.waveform) roles << MediaWaveformRole;
     if (n.fileName != m.fileName) roles << MediaFileNameRole;
     if (n.size != m.size) roles << MediaSizeRole;
     if (n.hasThumb != m.hasThumb) roles << ThumbSourceRole;

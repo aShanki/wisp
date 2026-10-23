@@ -93,7 +93,7 @@ Item {
         visible: row.typingText === "" && row.lastStatus !== "" && row.lastStatus !== "error"
         size: 18
         name: row.lastStatus === "pending" ? "schedule" : row.lastStatus === "sent" ? "done" : "done_all"
-        color: row.lastStatus === "read" ? Theme.read : Theme.textMuted
+        color: row.lastStatus === "read" || row.lastStatus === "played" ? Theme.read : Theme.textMuted
     }
 
     Text {

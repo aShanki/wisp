@@ -38,6 +38,8 @@ public:
         MediaFileNameRole,
         MediaSizeRole,
         MediaLoadingRole,
+        MediaWaveformRole,
+        SenderRole,
         ThumbSourceRole,
         MediaSourceRole,
         DayLabelRole,
@@ -58,6 +60,7 @@ public:
         QString id, sender, senderName, type, text, status;
         QString replySender, replyPreview;
         QString fileName, path;
+        QByteArray waveform;
         QList<Reaction> reactions;
         QList<Format::Mention> mentions;
         qint64 timestamp = 0, day = 0, size = 0;

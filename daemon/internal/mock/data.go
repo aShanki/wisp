@@ -298,7 +298,10 @@ func (cs *chatSpec) base(i int) api.Message {
 	case roll < 150:
 		m.Type = api.MsgVoice
 		d := 2 + r.IntN(70)
-		m.Media = &api.MediaInfo{Mime: "audio/wav", Duration: d, Size: int64(d * 8044)}
+		m.Media = &api.MediaInfo{Mime: "audio/wav", Duration: d, Size: int64(d * 8044), Waveform: waveform(hash(m.ID))}
+		if m.FromMe && m.Status == api.StatusRead && hash(m.ID)%2 == 0 {
+			m.Status = api.StatusPlayed
+		}
 	case roll < 170:
 		d := pick(r, docNames)
 		m.Type = api.MsgDocument

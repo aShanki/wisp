@@ -144,9 +144,10 @@ func TestImageWithThumb(t *testing.T) {
 func TestVoice(t *testing.T) {
 	raw := &waE2E.Message{AudioMessage: &waE2E.AudioMessage{
 		Mimetype: new("audio/ogg; codecs=opus"), PTT: new(true), Seconds: new(uint32(7)), DirectPath: new("/v/a"),
+		Waveform: []byte{3, 60, 100},
 	}}
 	m := mustMsg(t, testConverter().convert(fromAlice("A4"), raw))
-	if m.Type != api.MsgVoice || m.Media.Duration != 7 || m.MediaRef.Type != api.MsgVoice {
+	if m.Type != api.MsgVoice || m.Media.Duration != 7 || m.MediaRef.Type != api.MsgVoice || string(m.Media.Waveform) != "\x03<d" {
 		t.Fatalf("got %+v", m)
 	}
 }

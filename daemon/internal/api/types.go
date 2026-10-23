@@ -41,6 +41,7 @@ const (
 	StatusSent      = "sent"
 	StatusDelivered = "delivered"
 	StatusRead      = "read"
+	StatusPlayed    = "played" // a voice note listened to
 	StatusError     = "error"
 )
 
@@ -57,6 +58,8 @@ func StatusRank(s string) int {
 		return 2
 	case StatusRead:
 		return 3
+	case StatusPlayed:
+		return 4
 	}
 	return 0
 }
@@ -167,7 +170,8 @@ type MediaInfo struct {
 	Duration int    `json:"duration"` // seconds, audio/video
 	FileName string `json:"fileName"` // documents
 	HasThumb bool   `json:"hasThumb"`
-	Path     string `json:"path"` // local decrypted file if already cached, else ""
+	Path     string `json:"path"`               // local decrypted file if already cached, else ""
+	Waveform []byte `json:"waveform,omitempty"` // voice notes: levels 0-100, base64 in JSON
 }
 
 // Location payload for MsgLocation.
