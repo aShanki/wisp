@@ -127,6 +127,7 @@ private slots:
     void emojiSuggest();
     void mentionPicker();
     void mentionRendering();
+    void narrowWhileLoading();
     void unlinkClosesChat();
 
 private:
@@ -1283,6 +1284,31 @@ void UiTest::scrollMotion()
     m_conv->open(kBig);
     QTRY_VERIFY(m_conv->messages()->rowCount() >= 50 && !m_conv->loading());
     frame();
+}
+
+// Narrowing the mention list while it is still building rows, here to no
+// match in a 30-member group, leaves no stale delegate requests behind
+// (init() fails on Qt's warning about them).
+void UiTest::narrowWhileLoading()
+{
+    const QString group = u"120363000000000007@g.us"_s; // Sydney Runners
+    auto *members = m_engine->singletonInstance<QAbstractItemModel *>("Wisp", "Members");
+    QQuickItem *input = named(m_window->contentItem(), u"composerInput"_s);
+    QVERIFY(members && input);
+    m_conv->open(group);
+    QTRY_VERIFY(m_conv->jid() == group && !m_conv->loading());
+    input->forceActiveFocus();
+    for (int i = 0; i < 24; ++i) {
+        input->setProperty("text", QString());
+        type(u"@"_s);
+        QTRY_VERIFY(members->rowCount() > 20);
+        QTest::qWait(i % 6);
+        type(u"qz"_s);
+        QTRY_COMPARE(members->rowCount(), 0);
+    }
+    input->setProperty("text", QString());
+    m_conv->open(kBig);
+    QTRY_VERIFY(m_conv->messages()->rowCount() >= 50 && !m_conv->loading());
 }
 
 void UiTest::olderPages()

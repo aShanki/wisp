@@ -118,10 +118,19 @@ void MemberModel::filter()
             rows.append(m);
     if (rows == m_rows)
         return;
+    // Removed, then inserted: after a reset, the list's pending row
+    // requests could point past the new end.
     const qsizetype before = m_rows.size();
-    beginResetModel();
-    m_rows = std::move(rows);
-    endResetModel();
+    if (!m_rows.isEmpty()) {
+        beginRemoveRows({}, 0, int(m_rows.size()) - 1);
+        m_rows.clear();
+        endRemoveRows();
+    }
+    if (!rows.isEmpty()) {
+        beginInsertRows({}, 0, int(rows.size()) - 1);
+        m_rows = std::move(rows);
+        endInsertRows();
+    }
     if (m_rows.size() != before)
         emit countChanged();
 }

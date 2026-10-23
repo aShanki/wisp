@@ -229,13 +229,17 @@ MessageModel::Msg MessageModel::parse(const QJsonObject &o)
     return m;
 }
 
+// Rows go by removal, not a model reset, which could leave the list's
+// pending row requests pointing past the new end.
 void MessageModel::reset(const QString &chat)
 {
-    beginResetModel();
-    m_rows.clear();
-    m_rows.squeeze();
+    if (!m_rows.isEmpty()) {
+        beginRemoveRows({}, 0, int(m_rows.size()) - 1);
+        m_rows.clear();
+        m_rows.squeeze();
+        endRemoveRows();
+    }
     m_chat = chat;
-    endResetModel();
 }
 
 // Derived roles depend on the older neighbour, so a change at `row` only
