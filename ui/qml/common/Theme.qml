@@ -72,4 +72,8 @@ QtObject {
     readonly property int fontSizeName: 17
     readonly property int fontSizeLarge: 16
     readonly property int fontSizeTitle: 22
+    // The system emoji font's advance per pixel of size: large emoji are
+    // sized to fill WhatsApp's square emoji images.
+    readonly property real emojiAdvance: emojiMetrics.advanceWidth / 100
+    readonly property TextMetrics emojiMetrics: TextMetrics { font.pixelSize: 100; text: "\u{1F600}" }
 }

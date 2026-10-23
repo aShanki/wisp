@@ -26,21 +26,19 @@ int senderColor(const QString &jid)
     return int(h % 8);
 }
 
-// One to three emoji and nothing else, shown large.
+// One to three emoji and nothing else, not even spaces, shown large.
 int emojiCount(const QString &text)
 {
-    if (text.isEmpty() || text.size() > 48)
-        return false;
+    if (text.isEmpty() || text.size() > 50)
+        return 0;
     QTextBoundaryFinder f(QTextBoundaryFinder::Grapheme, text);
     qsizetype start = 0;
     int n = 0;
     while (f.toNextBoundary() != -1) {
         const QStringView g = QStringView(text).mid(start, f.position() - start);
         start = f.position();
-        if (g.trimmed().isEmpty())
-            continue;
         if (!isEmoji(g.toUcs4().value(0)) || ++n > 3)
-            return false;
+            return 0;
     }
     return n;
 }

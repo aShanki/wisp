@@ -48,7 +48,14 @@ Item {
     readonly property bool isFile: !isDeleted && hasMedia && !isVisual
     readonly property bool isAudio: isFile && (type === "voice" || type === "audio")
     readonly property bool hasQuote: !isDeleted && !!replyTo
-    readonly property bool bare: emojiOnly && !hasQuote && !isDeleted || type === "sticker" && isVisual
+    // One to three emoji are drawn large, in Web's image boxes: one alone
+    // without a bubble (in the bubble at 48 px when quoting), two or three in it.
+    readonly property bool bigEmoji: emojiOnly && !isDeleted
+    readonly property int emojiBox: !bigEmoji ? 0 : emojiCount === 1 ? (hasQuote ? 48 : 60) : emojiCount === 2 ? 36 : 24
+    readonly property bool bareEmoji: bigEmoji && emojiCount === 1 && !hasQuote
+    readonly property bool bare: bareEmoji || type === "sticker" && isVisual
+    // A bare emoji's sender sits in its own 29 px pill, 5 px above the block.
+    readonly property real emojiY: bareEmoji ? (showSender ? 40 : 12) : bubble.bodyY + 6
     readonly property bool showSender: isGroup && !fromMe && firstInGroup && !isSystem
     readonly property bool tail: firstInGroup && !bare
     readonly property string kindLabel: type === "location" ? "Location" : type === "contact" ? "Contact"
@@ -90,14 +97,14 @@ Item {
         : Math.round(aspect < 1 ? 240 / Math.max(0.71, aspect) : imageW / Math.min(4, aspect))
     // Only text messages use Web's Body2 text; captions and the deleted
     // placeholder take the bubble's 14.2 px type on 19 px lines.
-    readonly property bool body2: !bare && !isDeleted && !hasMedia
+    readonly property bool body2: !bigEmoji && !isDeleted && !hasMedia
 
     readonly property real contentMax: isVisual ? imageW - padL - padR + 6 : maxBubble - padL - padR
     readonly property real innerW: isVisual ? contentMax : Math.min(contentMax, Math.max(
         showSender ? sender.implicitWidth : 0,
         quote.item ? quote.item.implicitWidth - 10 : 0,
         file.item ? file.item.implicitWidth - 10 : 0,
-        hasBody ? body.implicitWidth + bodyIndent : 0,
+        bigEmoji ? emojiCount * emojiBox + 32 : hasBody ? body.implicitWidth + bodyIndent : 0,
         meta.width))
 
     readonly property bool unreadMark: msgId === Conversation.unreadFrom
@@ -105,6 +112,20 @@ Item {
     readonly property real gap: firstInGroup ? 12 : 2
     implicitHeight: dayH + gap + (isSystem ? system.height + 4
         : bubble.height + (reactionsLoader.active ? 26 : 0))
+
+    // A rounded fill with WhatsApp's 1 px drop shadow.
+    component Pill: Rectangle {
+        radius: 7.5
+        Rectangle {
+            z: -1
+            y: 1
+            width: parent.width
+            height: parent.height
+            radius: parent.radius
+            topLeftRadius: parent.topLeftRadius
+            color: Theme.bubbleEdge
+        }
+    }
 
     Loader {
         active: root.firstOfDay
@@ -166,8 +187,13 @@ Item {
         readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 7 : root.isFile ? file.height + 7 : 0)
         x: root.fromMe ? root.width - root.sideEnd - width : root.sideStart
         y: root.dayH + root.gap
-        width: root.isVisual ? root.imageW + 2 * pad : root.innerW + root.padL + root.padR
-        height: root.bare ? (root.isVisual ? mediaY + root.imageH : bodyY + body.height) + meta.height + 2
+        // Web's emoji block: 6 px above the images, 15 and 17 px beside them,
+        // the image's line descent and 14 px below; a 19 px line holds the time.
+        width: root.isVisual ? root.imageW + 2 * pad : root.bareEmoji ? root.emojiBox + 45
+            : root.innerW + root.padL + root.padR
+        height: root.bareEmoji ? root.emojiY + root.emojiBox + 38
+              : root.bare ? mediaY + root.imageH + 21
+              : root.bigEmoji ? bodyY + root.emojiBox + 52
               : root.hasBody ? bodyY + body.height + root.padB + (root.isDeleted ? 4 : 0)
               : root.isVisual ? mediaY + root.imageH + pad
               : root.isAudio ? mediaY + file.height + 4
@@ -177,6 +203,29 @@ Item {
         topLeftRadius: root.tail && !root.fromMe ? 0 : 7.5
         topRightRadius: root.tail && root.fromMe ? 0 : 7.5
         color: root.bare ? "transparent" : root.fromMe ? Theme.bubbleOut : Theme.bubbleIn
+
+        // Without a bubble, the sender and the time sit in pills of its colour.
+        Loader {
+            active: root.bare
+            anchors.fill: parent
+            sourceComponent: Item {
+                readonly property color fill: root.fromMe ? Theme.bubbleOut : Theme.bubbleIn
+                Pill {
+                    visible: root.showSender
+                    color: parent.fill
+                    width: bubble.width
+                    height: 29
+                    topLeftRadius: 0
+                }
+                Pill {
+                    color: parent.fill
+                    x: meta.x - 6
+                    y: meta.y - 3
+                    width: meta.width + 13
+                    height: 21
+                }
+            }
+        }
 
         Icon {
             visible: root.tail && !root.isSystem
@@ -193,7 +242,7 @@ Item {
             id: sender
             visible: root.showSender
             x: root.padL
-            y: root.padT
+            y: root.bare ? 4 : root.padT
             width: root.innerW
             height: 22
             verticalAlignment: Text.AlignVCenter
@@ -264,10 +313,12 @@ Item {
         Text {
             id: body
             visible: root.hasBody
-            x: root.padL + root.bodyIndent
-            y: bubble.bodyY + (root.bare ? 0 : root.isDeleted ? 3 : root.body2 ? 2 : 1)
-            width: Math.min(root.innerW - root.bodyIndent, implicitWidth)
-            text: !visible ? "" : root.bare ? root.bodyText
+            x: root.padL + (root.bigEmoji ? 15 : root.bodyIndent)
+            y: root.bigEmoji ? root.emojiY + (root.emojiBox - implicitHeight) / 2
+                : bubble.bodyY + (root.isDeleted ? 3 : root.body2 ? 2 : 1)
+            width: root.bigEmoji ? root.emojiCount * root.emojiBox : Math.min(root.innerW - root.bodyIndent, implicitWidth)
+            horizontalAlignment: root.bigEmoji ? Text.AlignHCenter : Text.AlignLeft
+            text: !visible ? "" : root.bigEmoji ? root.bodyText
                 : mentionStyle + root.bodyText + " "
                   + "&nbsp;".repeat(Math.round((meta.width + 5.5) / (root.spaceWidth + font.letterSpacing)) - 1)
             // StyledText underlines every link; WhatsApp's mentions are plain
@@ -275,14 +326,14 @@ Item {
             readonly property string mentionStyle: root.hasMentions
                 ? "<style>a{color:" + Theme.link + "}a.m{text-decoration:none}</style>" : ""
             textFormat: root.hasMentions ? Text.RichText : Text.StyledText
-            wrapMode: Text.Wrap
+            wrapMode: root.bigEmoji ? Text.NoWrap : Text.Wrap
             color: root.isDeleted ? Theme.bubbleMeta : Theme.text
             linkColor: Theme.link
-            font.pixelSize: root.bare ? (root.emojiCount === 1 ? 64 : root.emojiCount === 2 ? 48 : 40) : 14
+            font.pixelSize: root.bigEmoji ? root.emojiBox / Theme.emojiAdvance : 14
             font.italic: root.isDeleted
             font.letterSpacing: root.body2 ? 0.16 : 0
-            lineHeight: root.bare ? 1 : root.body2 ? 20 : 19
-            lineHeightMode: root.bare ? Text.ProportionalHeight : Text.FixedHeight
+            lineHeight: root.bigEmoji ? 1 : root.body2 ? 20 : 19
+            lineHeightMode: root.bigEmoji ? Text.ProportionalHeight : Text.FixedHeight
             onLinkActivated: link => {
                 if (!link.startsWith("mention:"))
                     Qt.openUrlExternally(link)
@@ -304,19 +355,10 @@ Item {
                 GradientStop { position: 1; color: Qt.rgba(0, 0, 0, 0.35) }
             }
         }
-        Rectangle {
-            visible: root.bare
-            x: meta.x - 4
-            y: meta.y - 1
-            width: meta.width + 8
-            height: meta.height + 2
-            radius: 6
-            color: root.fromMe ? Theme.bubbleOut : Theme.bubbleIn
-        }
         Row {
             id: meta
             x: bubble.width - width - (root.metaOnImage ? 8 : root.padR)
-            y: bubble.height - height - (root.metaOnImage ? 6 : root.bare ? 0 : 3)
+            y: bubble.height - height - (root.metaOnImage ? 6 : 3)
             height: 15
             spacing: 3
             readonly property color tint: root.metaOnImage ? "white" : Theme.bubbleMeta
