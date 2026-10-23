@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QList>
+#include <QFont>
 #include <QObject>
 #include <QString>
 #include <QStringList>
@@ -38,4 +39,5 @@ public:
     static QList<std::pair<qsizetype, qsizetype>> nameTokens(QStringView text, const QStringList &names);
     static QString user(const QString &jid); // "61400000001" of "61400000001:3@s.whatsapp.net"
     static QString fold(const QString &s);   // case and accents folded, for matching names
+    Q_INVOKABLE static QString elideRichText(const QString &html, const QFont &font, qreal width);
 };

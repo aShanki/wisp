@@ -1,4 +1,5 @@
 #include "imageprovider.h"
+#include "fontsetup.h"
 #include "perflog.h"
 #include "rpcclient.h"
 
@@ -34,7 +35,7 @@ int main(int argc, char *argv[])
         QQuickWindow::setGraphicsApi(QSGRendererInterface::Software);
     }
     QGuiApplication app(argc, argv);
-    app.setFont(QFont(u"Arial"_s));
+    app.setFont(applicationFont());
     app.setApplicationName(u"wisp"_s);
     app.setOrganizationName(u"wisp"_s);
     app.setApplicationVersion(QStringLiteral(WISP_VERSION));

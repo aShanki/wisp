@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Fetch WhatsApp's notification sound and app icon from WhatsApp Web, for a
+# Fetch WhatsApp's notification sound, app icon and fonts from WhatsApp Web, for a
 # personal install only (never commit them). Usage: fetch-whatsapp-assets.sh [dir]
 # Writes notification.<ext>, wisp.svg (or wisp.png) and, when found, the chat
 # doodle tiles wallpaper-light.png and wallpaper-dark.png to dir (build/whatsapp).
@@ -71,9 +71,27 @@ for mode in light dark; do
   fi
 done
 
+css=$(grep -oE 'https://static\.whatsapp\.net/rsrc\.php/[^" ]+\.css' "$tmp/index.html" | head -1) || true
+if [[ -n $css ]] && get "$css" "$tmp/style.css" style; then
+  for style in normal italic; do
+    font=$(grep -oE "@font-face\{font-family:Roboto Variable;font-style:$style;[^}]+" "$tmp/style.css" \
+      | grep -oE 'url\([^)]+\)' | head -1 | sed 's/^url(//;s/)$//') || true
+    [[ -n $font ]] || continue
+    [[ $font == https://* ]] || font="https://static.whatsapp.net$font"
+    name=Roboto.woff2
+    [[ $style != italic ]] || name=Roboto-Italic.woff2
+    if ! get "$font" "$tmp/$name" font; then
+      rm -f "$tmp/$name"
+    fi
+  done
+fi
+
 mkdir -p "$out"
 rm -f "$out"/notification.* "$out"/wisp.* "$out"/wallpaper-*
 mv "$tmp"/notification.* "$tmp"/wisp.* "$out"/
 mv "$tmp"/wallpaper-*.png "$out"/ 2>/dev/null || true
+for font in "$tmp"/Roboto*.woff2; do
+  [[ ! -s $font ]] || mv "$font" "$out/"
+done
 echo "$sound -> $(ls "$out"/notification.*)"
 echo "$icon -> $(ls "$out"/wisp.*)"

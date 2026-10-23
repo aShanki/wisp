@@ -85,18 +85,21 @@ install: build
 	install -d $(APPDIR) $(UNITDIR)
 	sed 's|^\(Try\)\?Exec=wisp$$|\1Exec=$(PREFIX)/bin/wisp|' packaging/wisp.desktop > $(APPDIR)/wisp.desktop
 	sed 's|%h/.local/bin/wispd|$(PREFIX)/bin/wispd|' packaging/wispd.service > $(UNITDIR)/wispd.service
-	ls $(WHATSAPP)/notification.* $(WHATSAPP)/wisp.* $(WHATSAPP)/wallpaper-light.png >/dev/null 2>&1 || scripts/fetch-whatsapp-assets.sh $(WHATSAPP) \
+	ls $(WHATSAPP)/notification.* $(WHATSAPP)/wisp.* $(WHATSAPP)/wallpaper-light.png $(WHATSAPP)/Roboto.woff2 >/dev/null 2>&1 || scripts/fetch-whatsapp-assets.sh $(WHATSAPP) \
 		|| echo "WhatsApp's icon and sound are unavailable: installing Wisp's icon and no sound"
 	rm -f $(ICONDIR)/scalable/apps/wisp.svg $(ICONDIR)/512x512/apps/wisp.png $(DATADIR)/notification.* $(DATADIR)/wallpaper-*
 	icon=$$(ls $(WHATSAPP)/wisp.* 2>/dev/null || echo packaging/wisp.svg); case $$icon in \
 		*.svg) install -Dm644 $$icon $(ICONDIR)/scalable/apps/wisp.svg ;; \
 		*) install -Dm644 $$icon $(ICONDIR)/512x512/apps/wisp.png ;; esac
 	for f in $(WHATSAPP)/notification.* $(WHATSAPP)/wallpaper-*.png; do [ ! -f "$$f" ] || install -Dm644 -t $(DATADIR) "$$f"; done
+	for f in $(WHATSAPP)/Roboto*.woff2; do [ ! -f "$$f" ] || install -Dm644 -t $(DATADIR) "$$f"; done
+	install -Dm644 ui/assets/fonts/LICENSE $(DATADIR)/Roboto-LICENSE.txt
 
 uninstall:
 	rm -f $(BINDIR)/wispd $(BINDIR)/wispctl $(BINDIR)/wisp $(APPDIR)/wisp.desktop \
 		$(ICONDIR)/scalable/apps/wisp.svg $(ICONDIR)/512x512/apps/wisp.png $(DATADIR)/notification.* $(DATADIR)/wallpaper-* \
 		$(UNITDIR)/wispd.service
+	rm -f $(DATADIR)/Roboto*.woff2 $(DATADIR)/Roboto-LICENSE.txt
 
 autostart: install
 	systemctl --user daemon-reload && systemctl --user enable wispd.service

@@ -2,6 +2,8 @@
 // private wispd --mock.
 #pragma once
 
+#include "fontsetup.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -72,7 +74,7 @@ inline void isolate(const QString &dir)
 // Match the app's controls and font.
 inline void useAppStyle()
 {
-    QGuiApplication::setFont(QFont(u"Arial"_s));
+    QGuiApplication::setFont(applicationFont(QStringLiteral(WISP_SOURCE_DIR "/../build/whatsapp")));
     QQuickStyle::setStyle(u"Basic"_s);
 }
 

@@ -23,6 +23,7 @@
 #include <QPalette>
 #include <QProcess>
 #include <QQmlApplicationEngine>
+#include <QQmlComponent>
 #include <QQuickItem>
 #include <QQuickTextDocument>
 #include <QQuickWindow>
@@ -37,6 +38,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <memory>
 
 Q_IMPORT_QML_PLUGIN(WispPlugin)
 
@@ -102,6 +104,7 @@ private slots:
     void cleanupTestCase();
 
     void chatListLoads();
+    void chatRowLayout();
     void rapidSearch();
     void listKeys();
     void shell();
@@ -379,6 +382,65 @@ void UiTest::notificationWindowState()
     m_window->setVisibility(originalVisibility);
     m_window->resize(originalSize);
     frame();
+}
+
+void UiTest::chatRowLayout()
+{
+    QQmlComponent component(m_engine);
+    component.setData("import QtQuick\nimport Wisp\nChatRow {}", QUrl());
+    const QString person = u"61400000001@s.whatsapp.net"_s;
+    const QString preview = u"@You Yes, we already reuse long-running threads. I checked every layout and all the spacing."_s;
+    const QVariantMap values {
+        {u"index"_s, 0}, {u"jid"_s, u"layout@g.us"_s}, {u"name"_s, u"Design team"_s},
+        {u"isGroup"_s, true}, {u"avatarSource"_s, qEnvironmentVariable("WISP_ROW_AVATAR")},
+        {u"preview"_s, preview},
+        {u"richPreview"_s, u"<a class=\"m\" href=\"mention:"_s + person + u"\">@You</a> "_s + preview.sliced(5)},
+        {u"previewSender"_s, u"Sam"_s}, {u"timeText"_s, u"16:54"_s},
+        {u"unread"_s, 0}, {u"muted"_s, false}, {u"pinned"_s, false},
+        {u"lastStatus"_s, QString()}, {u"typingText"_s, QString()}, {u"current"_s, true}
+    };
+    std::unique_ptr<QQuickItem> row(qobject_cast<QQuickItem *>(component.createWithInitialProperties(values)));
+    QVERIFY2(row, qPrintable(component.errorString()));
+    row->setParentItem(m_window->contentItem());
+    row->setPosition(QPointF(0, 0));
+    row->setZ(1000);
+    QQuickItem *body = named(row.get(), u"chatPreview"_s);
+    QQuickItem *name = named(row.get(), u"chatName"_s);
+    QQuickItem *time = named(row.get(), u"chatTime"_s);
+    QQuickItem *meta = named(row.get(), u"chatMeta"_s);
+    QVERIFY(body && name && time && meta);
+    for (const int width : {340, 420, 510}) {
+        row->setWidth(width);
+        for (const bool icons : {false, true}) {
+            row->setProperty("muted", icons);
+            row->setProperty("pinned", icons);
+            row->setProperty("unread", icons ? 12 : 0);
+            frame();
+            QCOMPARE(name->x(), 83.0);
+            QCOMPARE(body->x(), name->x());
+            QCOMPARE(body->y() - (name->y() + name->height()), 2.0);
+            QCOMPARE(width - time->x() - time->width(), 25.0);
+            QCOMPARE(time->y() - name->y(), 5.0);
+            QVERIFY(body->x() + body->width() <= meta->x() + 0.5);
+            const QString html = body->property("text").toString();
+            QTextDocument document;
+            document.setHtml(html);
+            QVERIFY2(document.toPlainText().endsWith(QChar(0x2026)), qPrintable(html));
+            QVERIFY(body->property("contentWidth").toDouble() <= body->width() + 1);
+            QVERIFY(body->property("contentHeight").toDouble() <= body->height() + 1);
+            bool linked = false;
+            for (qreal x = 0; x < body->width(); x += 2) {
+                QString link;
+                QMetaObject::invokeMethod(body, "linkAt", Q_RETURN_ARG(QString, link), Q_ARG(qreal, x), Q_ARG(qreal, body->height() / 2));
+                linked |= link == u"mention:"_s + person;
+            }
+            QVERIFY(linked);
+            if (!icons && width == 510) {
+                if (const QString dir = qEnvironmentVariable("WISP_SHOTS"); !dir.isEmpty())
+                    QVERIFY(m_window->grabWindow().copy(QRect(0, 0, width, 72)).save(dir + "/chat-row.png"_L1));
+            }
+        }
+    }
 }
 
 void UiTest::openBigChat()

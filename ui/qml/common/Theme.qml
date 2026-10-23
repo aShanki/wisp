@@ -17,12 +17,12 @@ QtObject {
     readonly property color field: dark ? "#242626" : "#f7f5f3"         // search, inputs
     readonly property color elevated: dark ? "#12181c" : "#ffffff"      // menus, dialogs
     readonly property color hover: dark ? "#242626" : "#f7f5f3"
-    readonly property color selected: dark ? "#2e2f2f" : "#f0efed"
+    readonly property color selected: dark ? "#2d2e2e" : "#f6f5f4"
     readonly property color divider: dark ? Qt.rgba(1, 1, 1, 0.1) : Qt.rgba(0, 0, 0, 0.1)
 
     // Text
-    readonly property color text: dark ? "#f7f8fa" : "#0a0a0a"
-    readonly property color textMuted: dark ? "#8d9599" : Qt.rgba(0, 0, 0, 0.6)
+    readonly property color text: dark ? "#fafafa" : "#0a0a0a"
+    readonly property color textMuted: dark ? Qt.rgba(1, 1, 1, 0.6) : Qt.rgba(0, 0, 0, 0.6)
     readonly property color textFaint: dark ? "#3e474d" : "#bdbdbd"
     readonly property color icon: dark ? "#aebac1" : "#54656f"
     readonly property color highlight: dark ? "#103529" : "#d9fdd3"     // text selection

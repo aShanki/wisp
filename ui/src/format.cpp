@@ -1,10 +1,37 @@
 #include "format.h"
 
 #include <QDateTime>
+#include <QFontMetricsF>
 #include <QLocale>
 #include <QRegularExpression>
+#include <QTextCursor>
+#include <QTextDocument>
 
 using namespace Qt::StringLiterals;
+
+QString Format::elideRichText(const QString &html, const QFont &font, qreal width)
+{
+    if (width <= 0)
+        return {};
+    QTextDocument document;
+    document.setDefaultFont(font);
+    document.setDocumentMargin(0);
+    document.setHtml(html);
+    const QString plain = document.toPlainText();
+    const QString elided = QFontMetricsF(font).elidedText(plain, Qt::ElideRight, qMax(0.0, width - 1));
+    if (elided == plain)
+        return html;
+    if (elided.isEmpty())
+        return {};
+    QTextCursor cursor(&document);
+    cursor.setPosition(elided.size() - 1);
+    cursor.movePosition(QTextCursor::End, QTextCursor::KeepAnchor);
+    cursor.removeSelectedText();
+    QTextCharFormat format;
+    format.setFont(font);
+    cursor.insertText(QString(QChar(0x2026)), format);
+    return document.toHtml().replace(u"white-space: pre-wrap"_s, u"white-space: pre"_s);
+}
 
 QString Format::time(qint64 ts)
 {

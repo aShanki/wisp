@@ -28,13 +28,14 @@ Item {
     signal contextMenuRequested(real x, real y)
     signal menuRequested(Item button)
 
-    width: ListView.view.width
+    width: ListView.view ? ListView.view.width : 0
     height: Theme.rowHeight
 
     Rectangle {
         id: bg
-        x: 12
-        width: parent.width - 24
+        objectName: "chatBackground"
+        x: 10
+        width: parent.width - 20
         height: parent.height
         radius: 12
         color: row.open ? Theme.selected
@@ -44,7 +45,8 @@ Item {
 
     Avatar {
         id: avatar
-        x: 24
+        objectName: "chatAvatar"
+        x: 20
         anchors.verticalCenter: parent.verticalCenter
         name: row.name
         group: row.isGroup
@@ -54,21 +56,29 @@ Item {
 
     Text {
         id: nameText
-        x: 88
-        y: 12
+        objectName: "chatName"
+        x: avatar.x + avatar.width + 14
+        y: (row.height - 43) / 2
+        height: 21
+        topPadding: 1
+        verticalAlignment: Text.AlignVCenter
         width: timeText.x - x - 6
         text: row.name
         textFormat: Text.PlainText
         elide: Text.ElideRight
         color: Theme.text
-        font.pixelSize: Theme.fontSizeName
+        font.pixelSize: 16
     }
 
     Text {
         id: timeText
+        objectName: "chatTime"
         anchors.right: parent.right
-        anchors.rightMargin: 24
-        anchors.baseline: nameText.baseline
+        anchors.rightMargin: 25
+        y: nameText.y + 5
+        height: 14
+        topPadding: 1
+        verticalAlignment: Text.AlignVCenter
         text: row.timeText
         color: row.unread > 0 && !row.muted ? Theme.accent : Theme.textMuted
         font.pixelSize: Theme.fontSizeSmall
@@ -92,12 +102,17 @@ Item {
         anchors.leftMargin: tick.visible ? 3 : 0
         anchors.right: meta.left
         anchors.rightMargin: meta.width > 0 ? 6 : 0
-        y: 40
+        y: nameText.y + nameText.height + 2
+        height: 20
+        topPadding: 1
+        clip: true
+        verticalAlignment: Text.AlignVCenter
         // WhatsApp markup (*bold*, _italic_, ~strike~, ```mono```) shown plain.
         readonly property bool mentions: row.typingText === "" && row.richPreview !== ""
-        text: mentions ? "<style>a.m{color:" + Theme.link + ";text-decoration:none}</style>"
-              + (row.previewSender !== "" && row.previewSender !== "You" ? row.previewSender.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + ": " : "")
+        readonly property string linkStyle: "<style>a{color:" + Theme.link + ";text-decoration:none}</style>"
+        readonly property string rich: (row.previewSender !== "" && row.previewSender !== "You" ? row.previewSender.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") + ": " : "")
               + row.richPreview
+        text: mentions ? linkStyle + Format.elideRichText(linkStyle + rich, font, width)
             : row.typingText !== "" ? row.typingText
             : (row.previewSender !== "" && row.previewSender !== "You" ? row.previewSender + ": " : "")
               + row.preview.replace(/(```|[*_~])(\S(?:.*?\S)?)\1/g, "$2")
@@ -110,8 +125,9 @@ Item {
 
     Row {
         id: meta
+        objectName: "chatMeta"
         anchors.right: parent.right
-        anchors.rightMargin: 24
+        anchors.rightMargin: 25
         anchors.verticalCenter: previewText.verticalCenter
         spacing: 4
 

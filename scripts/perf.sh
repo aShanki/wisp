@@ -58,7 +58,7 @@ mkdir -p "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME" "$XDG_STATE_HOME"
 export XDG_RUNTIME_DIR=$TMP/runtime
 mkdir -m 700 "$XDG_RUNTIME_DIR"
 mkdir -p "$XDG_DATA_HOME/wisp"
-for asset in "$ROOT"/build/whatsapp/wallpaper-*.png; do
+for asset in "$ROOT"/build/whatsapp/wallpaper-*.png "$ROOT"/build/whatsapp/Roboto*.woff2; do
   [[ ! -f $asset ]] || ln -s "$asset" "$XDG_DATA_HOME/wisp/"
 done
 export WISP_SOCKET=$SOCK
