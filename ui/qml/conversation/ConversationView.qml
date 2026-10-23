@@ -94,15 +94,21 @@ Rectangle {
 
         // Follows the newest message unless the user scrolled up.
         property bool pinned: true
-        function updatePinned() { pinned = originY + contentHeight - contentY - height < 48 }
+        function updatePinned() {
+            const newest = itemAtIndex(0)
+            pinned = count === 0 || newest !== null && newest.y + newest.height - contentY <= height + 1
+        }
         onPinnedChanged: if (pinned) view.unseen = 0
+        onMovementStarted: pinned = false
+        onMovementEnded: updatePinned()
         onContentYChanged: {
-            updatePinned()
+            if (!moving)
+                updatePinned()
             view.maybeLoadOlder()
             hover.target = null
         }
         onHeightChanged: if (pinned) positionViewAtBeginning()
-        onContentHeightChanged: pinned && !moving ? positionViewAtBeginning() : updatePinned()
+        onContentHeightChanged: if (pinned && !moving) positionViewAtBeginning()
 
         delegate: MessageDelegate {
             width: list.width

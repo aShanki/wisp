@@ -12,6 +12,7 @@
 
 #include <QClipboard>
 #include <QDir>
+#include <QDateTime>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QElapsedTimer>
@@ -119,6 +120,7 @@ private slots:
     void readOnlyChat();
     void imageViewer();
     void olderPages();
+    void scrollMotion();
     void menuPlacement();
     void composerReply();
     void emojiSuggest();
@@ -1114,6 +1116,96 @@ void UiTest::composerReply()
     QVERIFY(m_conv->replyTo().toMap().isEmpty());
     QTRY_COMPARE(field->height(), emptyRow);
     QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+}
+
+void UiTest::scrollMotion()
+{
+    const QSize original = m_window->size();
+    for (const QSize size : {original, QSize(1920, 1026)}) {
+        m_window->resize(size);
+        m_conv->close();
+        m_conv->open(kBig);
+        QTRY_VERIFY(m_conv->messages()->rowCount() >= 50 && !m_conv->loading());
+        auto *view = findView(m_window->contentItem(), m_conv->messages());
+        QVERIFY(view);
+        frame();
+        QTRY_VERIFY(view->property("pinned").toBool());
+        QTest::qWait(100); // finish the asynchronous delegate buffer
+        const QPointF at = sceneRect(view).center();
+        QElapsedTimer clock;
+        clock.start();
+        const auto wheel = [&](int angle) {
+            QWheelEvent event(at, m_window->mapToGlobal(at), {}, {0, angle}, Qt::NoButton, {}, Qt::NoScrollPhase, false);
+            event.setTimestamp(clock.msecsSinceReference() + clock.elapsed());
+            QGuiApplication::sendEvent(m_window, &event);
+        };
+        // Ordinary notches and high-resolution wheel steps must both leave
+        // the bottom, even when Qt discovers differently-sized cached rows.
+        for (int angle : {120, 120, 30, 30, 120, 120}) {
+            const qreal before = view->property("contentY").toReal();
+            wheel(angle);
+            qreal previous = before;
+            for (int frame = 0; frame < 25; ++frame) {
+                QTest::qWait(10);
+                const qreal now = view->property("contentY").toReal();
+                QVERIFY2(now <= previous + 1, "Scrolling up snapped back towards newer messages");
+                previous = now;
+            }
+            QTRY_VERIFY(!view->property("moving").toBool());
+            QVERIFY2(view->property("contentY").toReal() < before - 1,
+                     qPrintable(u"Wheel step %1 at width %2: %3 -> %4"_s.arg(angle).arg(size.width())
+                         .arg(before).arg(view->property("contentY").toReal())));
+            QVERIFY(!view->property("pinned").toBool());
+        }
+        QString anchor;
+        for (int row = 0; row < m_conv->messages()->rowCount(); ++row) {
+            auto *item = itemAt(view, row);
+            if (item && sceneRect(item).contains(at)) {
+                anchor = item->property("msgId").toString();
+                break;
+            }
+        }
+        QVERIFY(!anchor.isEmpty());
+        const auto anchorY = [&] {
+            auto *item = itemAt(view, m_conv->messages()->indexOf(anchor));
+            return item ? sceneRect(item).top() : -1e6;
+        };
+        const qreal beforePage = anchorY();
+        const int count = m_conv->messages()->rowCount();
+        m_conv->loadOlder();
+        QTRY_VERIFY(!m_conv->loading() && m_conv->messages()->rowCount() > count);
+        frame();
+        QVERIFY2(std::abs(anchorY() - beforePage) < 1, "Loading history moved the visible message");
+
+        // Exercise the incoming-event path while reading history and again
+        // at the bottom; neither case may lose the user's scroll position.
+        const auto incoming = [&](const QString &id) {
+            RpcClient::instance()->event(u"message.new"_s, {{u"message"_s, QJsonObject{
+                {u"id"_s, id}, {u"chat"_s, kBig}, {u"sender"_s, kBig},
+                {u"senderName"_s, u"Big Chat"_s}, {u"type"_s, u"text"_s},
+                {u"text"_s, u"New message while scrolling"_s},
+                {u"timestamp"_s, QDateTime::currentSecsSinceEpoch() + 100}}}});
+        };
+        incoming(u"scroll-history"_s);
+        frame();
+        QVERIFY2(std::abs(anchorY() - beforePage) < 1, "An incoming message moved the visible history");
+        QVERIFY(!view->property("pinned").toBool());
+        shoot(u"scroll-history-%1"_s.arg(size.width()));
+        QVERIFY(QMetaObject::invokeMethod(view->parentItem(), "scrollToBottom"));
+        frame();
+        QTRY_VERIFY(view->property("pinned").toBool());
+        incoming(u"scroll-bottom"_s);
+        frame();
+        QTRY_VERIFY(view->property("pinned").toBool());
+        auto *newest = itemAt(view, 0);
+        QVERIFY(newest);
+        QVERIFY(std::abs(sceneRect(newest).bottom() - sceneRect(view).bottom()) <= view->property("bottomMargin").toReal() + 1);
+    }
+    m_window->resize(original);
+    m_conv->close();
+    m_conv->open(kBig);
+    QTRY_VERIFY(m_conv->messages()->rowCount() >= 50 && !m_conv->loading());
+    frame();
 }
 
 void UiTest::olderPages()
