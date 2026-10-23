@@ -59,7 +59,8 @@ Item {
     readonly property bool hasBody: bodyText !== "" && !isSystem
     // The time sits over the image when there is no caption.
     readonly property bool metaOnImage: isVisual && !hasBody && !bare
-    readonly property int bodyIndent: isDeleted ? 21 : 0
+    // A deleted message's text follows Web's 22 px icon in a 24 px slot.
+    readonly property int bodyIndent: isDeleted ? 29 : 0
     readonly property Item bubbleItem: bubble
 
     // Geometry, in WhatsApp Web's pixels. Its row padding and bubble width
@@ -76,13 +77,20 @@ Item {
     readonly property int padT: 6
     readonly property int padB: 8
 
-    readonly property real imageScale: {
-        const w = mediaWidth > 0 ? mediaWidth : 4, h = mediaHeight > 0 ? mediaHeight : 3
-        const maxW = type === "sticker" ? 190 : Math.min(330, maxBubble - 6)
-        return Math.min(maxW / w, 338 / h)
-    }
-    readonly property int imageW: isVisual ? Math.max(120, Math.round((mediaWidth > 0 ? mediaWidth : 4) * imageScale)) : 0
-    readonly property int imageH: isVisual ? Math.max(80, Math.round((mediaHeight > 0 ? mediaHeight : 3) * imageScale)) : 0
+    // Photos and videos are cropped as WhatsApp Web does: 330 px wide, 240
+    // when portrait, the height by the aspect ratio kept within 0.71 to 4.
+    // Stickers fit in 190 px.
+    readonly property real aspect: (mediaWidth > 0 ? mediaWidth : 4) / (mediaHeight > 0 ? mediaHeight : 3)
+    readonly property real stickerScale: Math.min(190 / (mediaWidth > 0 ? mediaWidth : 4), 338 / (mediaHeight > 0 ? mediaHeight : 3))
+    readonly property int imageW: !isVisual ? 0
+        : type === "sticker" ? Math.max(120, Math.round((mediaWidth > 0 ? mediaWidth : 4) * stickerScale))
+        : aspect < 1 ? 240 : Math.round(Math.min(330, maxBubble - 6))
+    readonly property int imageH: !isVisual ? 0
+        : type === "sticker" ? Math.max(80, Math.round((mediaHeight > 0 ? mediaHeight : 3) * stickerScale))
+        : Math.round(aspect < 1 ? 240 / Math.max(0.71, aspect) : imageW / Math.min(4, aspect))
+    // Only text messages use Web's Body2 text; captions and the deleted
+    // placeholder take the bubble's 14.2 px type on 19 px lines.
+    readonly property bool body2: !bare && !isDeleted && !hasMedia
 
     readonly property real contentMax: isVisual ? imageW - padL - padR + 6 : maxBubble - padL - padR
     readonly property real innerW: isVisual ? contentMax : Math.min(contentMax, Math.max(
@@ -93,7 +101,7 @@ Item {
         meta.width))
 
     readonly property bool unreadMark: msgId === Conversation.unreadFrom
-    readonly property real dayH: (firstOfDay ? 46 : 0) + (unreadMark ? 46 : 0)
+    readonly property real dayH: (firstOfDay ? 36 : 0) + (unreadMark ? 46 : 0)
     readonly property real gap: firstInGroup ? 12 : 2
     implicitHeight: dayH + gap + (isSystem ? system.height + 4
         : bubble.height + (reactionsLoader.active ? 18 : 0))
@@ -102,7 +110,10 @@ Item {
         active: root.firstOfDay
         y: 12
         anchors.horizontalCenter: parent.horizontalCenter
-        sourceComponent: Chip { text: root.dayLabel.toUpperCase() }
+        sourceComponent: Chip {
+            text: root.dayLabel
+            font.weight: 545
+        }
     }
     Loader {
         active: root.unreadMark
@@ -149,12 +160,12 @@ Item {
         readonly property real quoteY: root.showSender ? root.padT + senderH + 5 : 3
         readonly property real mediaY: root.hasQuote ? quoteY + quote.height + 6
             : root.isVisual && !root.showSender ? 3 : root.padT + senderH
-        readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 4 : root.isFile ? file.height + 4 : 0)
+        readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 7 : root.isFile ? file.height + 4 : 0)
         x: root.fromMe ? root.width - root.sideEnd - width : root.sideStart
         y: root.dayH + root.gap
         width: root.isVisual ? root.imageW + 2 * pad : root.innerW + root.padL + root.padR
         height: root.bare ? (root.isVisual ? mediaY + root.imageH : bodyY + body.height) + meta.height + 2
-              : root.hasBody ? bodyY + body.height + root.padB
+              : root.hasBody ? bodyY + body.height + root.padB + (root.isDeleted ? 4 : 0)
               : root.isVisual ? mediaY + root.imageH + pad
               : root.isAudio ? mediaY + file.height + 4
               : bodyY + meta.height + root.padB - 4
@@ -237,9 +248,9 @@ Item {
         }
         Loader {
             active: root.isDeleted
-            x: root.padL
-            y: bubble.bodyY + 1
-            sourceComponent: Icon { name: "block"; size: 17; color: Theme.bubbleMeta }
+            x: root.padL - 2
+            y: bubble.bodyY - 1
+            sourceComponent: Icon { name: "block"; size: 22; color: Theme.bubbleMeta }
         }
         // A run of no-break spaces reserves room for the time on the last
         // line: Web's spacer is the time at 11 px with 4 px either side.
@@ -249,7 +260,7 @@ Item {
             id: body
             visible: root.hasBody
             x: root.padL + root.bodyIndent
-            y: bubble.bodyY + (root.bare ? 0 : 2)
+            y: bubble.bodyY + (root.bare ? 0 : root.isDeleted ? 3 : root.body2 ? 2 : 1)
             width: Math.min(root.innerW - root.bodyIndent, implicitWidth)
             text: !visible ? "" : root.bare ? root.bodyText
                 : mentionStyle + root.bodyText + " "
@@ -264,8 +275,8 @@ Item {
             linkColor: Theme.link
             font.pixelSize: root.bare ? (root.emojiCount === 1 ? 64 : root.emojiCount === 2 ? 48 : 40) : 14
             font.italic: root.isDeleted
-            font.letterSpacing: root.bare ? 0 : 0.16
-            lineHeight: root.bare ? 1 : 20
+            font.letterSpacing: root.body2 ? 0.16 : 0
+            lineHeight: root.bare ? 1 : root.body2 ? 20 : 19
             lineHeightMode: root.bare ? Text.ProportionalHeight : Text.FixedHeight
             onLinkActivated: link => {
                 if (!link.startsWith("mention:"))
@@ -299,8 +310,8 @@ Item {
         }
         Row {
             id: meta
-            x: bubble.width - width - (root.metaOnImage ? 7 : root.padR)
-            y: bubble.height - height - (root.metaOnImage ? 5 : root.bare ? 0 : 3)
+            x: bubble.width - width - (root.metaOnImage ? 8 : root.padR)
+            y: bubble.height - height - (root.metaOnImage ? 6 : root.bare ? 0 : 3)
             height: 15
             spacing: 3
             readonly property color tint: root.metaOnImage ? "white" : Theme.bubbleMeta

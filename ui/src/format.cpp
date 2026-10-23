@@ -55,7 +55,11 @@ QString Format::day(qint64 ts)
         return tr("Yesterday");
     if (ago > 1 && ago < 7)
         return QLocale().dayName(d.dayOfWeek());
-    return QLocale().toString(d, u"d MMMM yyyy");
+    // WhatsApp Web shows the locale's numeric date with the full year.
+    QString format = QLocale().dateFormat(QLocale::ShortFormat);
+    if (!format.contains(u"yyyy"))
+        format.replace(u"yy"_s, u"yyyy"_s);
+    return QLocale().toString(d, format);
 }
 
 QString Format::fileSize(qint64 bytes)
