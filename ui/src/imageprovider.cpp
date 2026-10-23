@@ -63,7 +63,9 @@ public:
             image.fill(Qt::transparent);
         }
         m_image = std::move(image);
-        emit finished();
+        // Emitted from the response's own thread: the engine deletes the
+        // response once it hears, which must not race the emission.
+        QMetaObject::invokeMethod(this, &Response::finished, Qt::QueuedConnection);
     }
 
     std::atomic_bool m_cancelled = false;
