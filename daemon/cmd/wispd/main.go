@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"runtime/debug"
 	"syscall"
 
@@ -119,5 +120,8 @@ func main() {
 
 func defaultDataDir() string {
 	home, _ := os.UserHomeDir()
+	if runtime.GOOS == "darwin" {
+		return filepath.Join(home, "Library", "Application Support", "Wisp")
+	}
 	return filepath.Join(home, ".local", "share", "wisp")
 }

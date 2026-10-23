@@ -1,3 +1,5 @@
+//go:build !darwin
+
 // Package audio is a call's sound through the PulseAudio protocol (pipewire-pulse):
 // the microphone, the speaker, and the ringing tones. Every stream is opened for one
 // call and closed with it, so nothing runs between calls.

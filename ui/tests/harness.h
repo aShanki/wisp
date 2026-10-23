@@ -16,7 +16,9 @@
 
 #include <csignal>
 
+#ifdef Q_OS_LINUX
 #include <sys/prctl.h>
+#endif
 
 namespace harness {
 
@@ -77,7 +79,9 @@ inline void useAppStyle()
 // Starts wispd --mock on dir's socket; it gets SIGTERM if the test dies.
 inline void startMock(QProcess &daemon, const QString &dir, const QStringList &extra = {})
 {
+#ifdef Q_OS_LINUX
     daemon.setChildProcessModifier([] { ::prctl(PR_SET_PDEATHSIG, SIGTERM); });
+#endif
     daemon.start(binDir() + "/wispd"_L1,
                  QStringList{u"--mock"_s, u"--socket"_s, socketPath(dir), u"--data"_s, dir + "/data"_L1} + extra);
 }

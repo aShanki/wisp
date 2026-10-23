@@ -1,3 +1,5 @@
+//go:build !darwin
+
 // Package notify shows message notifications through
 // org.freedesktop.Notifications on the session bus, with KDE Plasma's inline
 // reply, and plays WhatsApp's notification sound when it is installed. Each

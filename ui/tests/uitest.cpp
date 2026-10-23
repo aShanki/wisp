@@ -933,8 +933,17 @@ void UiTest::composerReply()
     QVERIFY(!quote->isVisible());
     frame();
     const qreal padding = input->property("topPadding").toReal() + input->property("bottomPadding").toReal();
-    const qreal row = field->height(); // one empty line
+    const qreal emptyRow = field->height();
+    type(u"line 1"_s);
+    frame();
+    const qreal row = field->height();
     const qreal line = input->height() - padding;
+    key(Qt::Key_Return, Qt::ShiftModifier);
+    type(u"line 2"_s);
+    frame();
+    const qreal advance = input->height() - padding - line;
+    key(Qt::Key_A, Qt::ControlModifier);
+    key(Qt::Key_Backspace);
 
     m_conv->startReply(m_conv->messages()->index(0, 0).data(MessageModel::MsgIdRole).toString());
     QTRY_VERIFY(quote->isVisible() && cancel->isVisible());
@@ -959,8 +968,10 @@ void UiTest::composerReply()
                     return u"input clipped"_s;
                 if (!f.contains(q) || !f.contains(x) || q.bottom() > port.top() || x.bottom() > port.top())
                     return u"quote over the input"_s;
-                if (std::abs(f.bottom() - q.bottom() - (row + (lines - 1) * line)) > 0.5)
-                    return u"input row squeezed"_s;
+                if (std::abs(f.bottom() - q.bottom() - (row + (lines - 1) * advance)) > 0.5)
+                    return u"input row squeezed: actual %1, expected %2 (%3 lines, line %4, content %5)"_s
+                        .arg(f.bottom() - q.bottom()).arg(row + (lines - 1) * advance).arg(lines).arg(line)
+                        .arg(input->property("contentHeight").toReal());
                 if (std::abs(x.center().y() - q.center().y()) > 0.5 || std::abs(q.left() - f.left() - (f.right() - x.right())) > 0.5)
                     return u"close button misplaced"_s;
                 if (std::abs(sceneRect(attach).center().y() - lastLine) > 1 || std::abs(sceneRect(attach).left() - q.left()) > 0.5)
@@ -989,7 +1000,7 @@ void UiTest::composerReply()
     QTest::mouseClick(m_window, Qt::LeftButton, {}, sceneRect(cancel).center().toPoint());
     QTRY_VERIFY(!quote->isVisible());
     QVERIFY(m_conv->replyTo().toMap().isEmpty());
-    QTRY_COMPARE(field->height(), row);
+    QTRY_COMPARE(field->height(), emptyRow);
     QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
 }
 

@@ -1,6 +1,7 @@
 #include "rpcclient.h"
 
 #include <QCoreApplication>
+#include <QDir>
 #include <QFileInfo>
 #include <QJSEngine>
 #include <QJsonDocument>
@@ -77,6 +78,10 @@ void RpcClient::start(const Options &opts)
         m_socketPath = qEnvironmentVariable("WISP_SOCKET");
     if (m_socketPath.isEmpty()) {
         QString dir = qEnvironmentVariable("XDG_RUNTIME_DIR");
+#ifdef Q_OS_MACOS
+        if (dir.isEmpty())
+            dir = QDir::homePath() + "/Library/Application Support/Wisp/run"_L1;
+#endif
         if (dir.isEmpty())
             dir = QStandardPaths::writableLocation(QStandardPaths::RuntimeLocation);
         m_socketPath = dir + (opts.mock ? "/wisp-mock.sock"_L1 : "/wisp.sock"_L1);

@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sync"
 
+	"github.com/mattn/go-isatty"
 	"golang.org/x/sys/unix"
 )
 
@@ -45,7 +46,7 @@ func maskNumbers(_ []string, a slog.Attr) slog.Attr {
 // $XDG_STATE_HOME/wisp/wispd.log unless it is a terminal, and returns the
 // writer to log to. The file starts over once it is past 1 MB.
 func logToFile() (io.Writer, error) {
-	if _, err := unix.IoctlGetTermios(int(os.Stderr.Fd()), unix.TCGETS); err == nil {
+	if isatty.IsTerminal(os.Stderr.Fd()) {
 		return os.Stderr, nil
 	}
 	dir := os.Getenv("XDG_STATE_HOME")
@@ -70,7 +71,7 @@ func logToFile() (io.Writer, error) {
 		return os.Stderr, err
 	}
 	defer f.Close()
-	if err := unix.Dup3(int(f.Fd()), int(os.Stderr.Fd()), 0); err != nil {
+	if err := unix.Dup2(int(f.Fd()), int(os.Stderr.Fd())); err != nil {
 		return os.Stderr, err
 	}
 	w := &capped{f: os.Stderr}

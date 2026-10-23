@@ -55,7 +55,17 @@ target_compile_definitions(wispui PUBLIC WISP_VERSION="${PROJECT_VERSION}")
 
 qt_add_executable(wisp src/main.cpp)
 target_link_libraries(wisp PRIVATE wispui wispuiplugin)
-install(TARGETS wisp RUNTIME DESTINATION bin)
+if(APPLE)
+  enable_language(OBJCXX)
+  target_sources(wisp PRIVATE src/macos.mm)
+  set_source_files_properties(src/macos.mm PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+  target_link_libraries(wisp PRIVATE "-framework AppKit" "-framework UserNotifications")
+  set_target_properties(wisp PROPERTIES MACOSX_BUNDLE TRUE
+    MACOSX_BUNDLE_BUNDLE_NAME Wisp
+    MACOSX_BUNDLE_GUI_IDENTIFIER io.github.aShanki.wisp
+    MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../packaging/Info.plist")
+endif()
+install(TARGETS wisp RUNTIME DESTINATION bin BUNDLE DESTINATION .)
 
 # Tests against wispd --mock: the interaction test (wisp-uitest) and the
 # seeded chaos monkey (wisp-chaos, which also needs Qt Quick Test).

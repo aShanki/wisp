@@ -239,7 +239,7 @@ Rectangle {
                         color: Theme.text
                         font.pixelSize: 30
                         font.letterSpacing: 5
-                        font.family: "monospace"
+                        font.family: Qt.platform.os === "osx" ? "Menlo" : "monospace"
                     }
                 }
 

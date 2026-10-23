@@ -16,6 +16,10 @@ Q_IMPORT_QML_PLUGIN(WispPlugin)
 
 using namespace Qt::StringLiterals;
 
+#ifdef Q_OS_MACOS
+void setupMacDesktop(QQuickWindow *, RpcClient *);
+#endif
+
 int main(int argc, char *argv[])
 {
     PerfLog::elapsed();
@@ -62,6 +66,10 @@ int main(int argc, char *argv[])
     auto *window = engine.rootObjects().isEmpty() ? nullptr : qobject_cast<QQuickWindow *>(engine.rootObjects().constFirst());
     if (!window)
         return 1;
+#ifdef Q_OS_MACOS
+    if (!cli.isSet(shot))
+        setupMacDesktop(window, rpc);
+#endif
     if (const QStringList wh = cli.value(size).split(u'x'); wh.size() == 2)
         window->resize(wh[0].toInt(), wh[1].toInt());
 
