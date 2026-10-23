@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Wisp
+GenericName=WhatsApp Client
+Comment=Native WhatsApp client
+Exec=wisp
+TryExec=wisp
+Icon=wisp
+StartupNotify=true
+StartupWMClass=wisp
+SingleMainWindow=true
+Categories=Network;InstantMessaging;Chat;Qt;
+Keywords=WhatsApp;Chat;Messenger;

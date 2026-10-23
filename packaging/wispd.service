@@ -1,0 +1,13 @@
+# wispd from login, in the tray with no window: make autostart
+[Unit]
+Description=Wisp WhatsApp daemon
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.local/bin/wispd
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
