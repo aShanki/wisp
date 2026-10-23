@@ -10,6 +10,7 @@ Item {
 
     required property string msgId
     required property string senderName
+    required property string senderJid
     required property int senderColor
     required property bool fromMe
     required property string timeText
@@ -50,6 +51,8 @@ Item {
     readonly property bool bare: emojiOnly && !hasQuote && !isDeleted || type === "sticker" && isVisual
     readonly property bool showSender: isGroup && !fromMe && firstInGroup && !isSystem
     readonly property bool tail: firstInGroup && !bare
+    // Group chats keep a column left of incoming bubbles for the sender's avatar.
+    readonly property int avatarCol: isGroup && !fromMe && !isSystem ? 38 : 0
     readonly property string kindLabel: type === "location" ? "Location" : type === "contact" ? "Contact"
         : type === "poll" ? "Poll" : type === "unsupported" ? "Unsupported message" : ""
     readonly property string bodyText: isDeleted ? (fromMe ? "You deleted this message" : "This message was deleted")
@@ -63,7 +66,7 @@ Item {
 
     // Geometry, in WhatsApp Web's pixels.
     readonly property int side: Math.round(Math.min(63, Math.max(12, width * 0.06)))
-    readonly property real maxBubble: (width - 2 * side) * (width >= 900 ? 0.65 : 0.85)
+    readonly property real maxBubble: (width - 2 * side - avatarCol) * (width >= 900 ? 0.65 : 0.85)
     readonly property int padL: 9
     readonly property int padR: 7
     readonly property int padT: 6
@@ -141,7 +144,7 @@ Item {
         readonly property real quoteY: root.isVisual && !root.showSender ? 3 : root.padT + senderH
         readonly property real mediaY: root.hasQuote ? quoteY + quote.height + 4 : quoteY
         readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 4 : root.isFile ? file.height + 4 : 0)
-        x: root.fromMe ? root.width - root.side - width : root.side
+        x: root.fromMe ? root.width - root.side - width : root.side + root.avatarCol
         y: root.dayH + root.gap
         width: root.isVisual ? root.imageW + 2 * pad : root.innerW + root.padL + root.padR
         height: root.bare ? (root.isVisual ? mediaY + root.imageH : bodyY + body.height) + meta.height + 2
@@ -303,6 +306,19 @@ Item {
                     : root.status === "sent" ? "done" : root.status === "error" ? "error" : "done_all"
                 color: root.status === "read" ? Theme.read : root.status === "error" ? Theme.danger : meta.tint
             }
+        }
+    }
+
+    Loader {
+        active: root.avatarCol > 0 && root.firstInGroup
+        x: root.side
+        y: bubble.y
+        sourceComponent: Avatar {
+            size: 28
+            name: root.senderName
+            initialColor: Theme.senderColor(root.senderColor)
+            source: root.senderJid !== "" ? "image://wisp/avatar/" + root.senderJid : ""
+            maskColor: "transparent"
         }
     }
 

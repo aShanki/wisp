@@ -1,9 +1,13 @@
 package core
 
 import (
+	"bytes"
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"runtime"
 	"slices"
@@ -451,6 +455,45 @@ func TestSendMedia(t *testing.T) {
 	}
 	if st, _ := h.st.GetMessage(ctx, alice, m.ID); st.Media == nil || st.Media.Path != m.Media.Path {
 		t.Errorf("stored media = %+v", st.Media)
+	}
+}
+
+// A favourite from the phone is listed and sent as a fresh sticker upload.
+func TestSendSticker(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	enc := bytes.Repeat([]byte{7}, 32)
+	id := hex.EncodeToString(enc)
+	h.c.handle(api.EvFavoriteSticker{Favorite: true, TS: 5, Width: 256, Height: 256,
+		Ref: api.MediaRef{Mime: "image/webp", DirectPath: "/v/s", MediaKey: []byte{1}, FileEncSHA256: enc}})
+	list, err := h.c.StickersList(ctx)
+	if err != nil || len(list.Stickers) != 1 || list.Stickers[0].ID != id || !list.Stickers[0].Favorite {
+		t.Fatalf("list = %+v, %v", list, err)
+	}
+	// An animated WebP: RIFF, size, WEBP, then a VP8X chunk with the animation flag.
+	webp := append([]byte("RIFF\x00\x00\x00\x00WEBPVP8X\x0a\x00\x00\x00\x02"), make([]byte, 16)...)
+	if err := os.WriteFile(filepath.Join(h.md.dir, id+".jpg"), webp, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	m, err := h.c.MessagesSendSticker(ctx, api.SendStickerParams{Chat: alice, Sticker: id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Type != api.MsgSticker || m.Media == nil || m.Media.Width != 256 {
+		t.Fatalf("pending = %+v media=%+v", m, m.Media)
+	}
+	h.ev.waitFor(t, "sticker sent", func(e event) bool {
+		me, ok := e.params.(api.MessageEvent)
+		return e.name == api.EMessageUpdate && ok && me.Message.Status == api.StatusSent
+	})
+	h.wa.mu.Lock()
+	sent := h.wa.sends[len(h.wa.sends)-1].media
+	h.wa.mu.Unlock()
+	if sent.Type != api.MsgSticker || sent.Mime != "image/webp" || !sent.Animated || !bytes.Equal(sent.Data, webp) {
+		t.Fatalf("sent = %+v", sent)
+	}
+	if _, err := h.c.MessagesSendSticker(ctx, api.SendStickerParams{Chat: alice, Sticker: "00"}); !errors.Is(err, api.ErrNotFound) {
+		t.Fatalf("unknown sticker: %v", err)
 	}
 }
 

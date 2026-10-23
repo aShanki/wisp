@@ -100,3 +100,28 @@ func TestPinTime(t *testing.T) {
 		t.Error("pinTime")
 	}
 }
+
+func TestFavoriteSticker(t *testing.T) {
+	enc := make([]byte, 32)
+	ev := func(index string, a *waSyncAction.StickerAction) *events.AppState {
+		return &events.AppState{Index: []string{index, "hash"},
+			SyncActionValue: &waSyncAction.SyncActionValue{Timestamp: new(int64(1_700_000_000_123)), StickerAction: a}}
+	}
+	f, ok := favoriteSticker(ev(appstate.IndexFavoriteSticker, &waSyncAction.StickerAction{
+		DirectPath: new("/v/s"), MediaKey: []byte{1}, FileEncSHA256: enc, Width: new(uint32(512)),
+		Height: new(uint32(512)), IsFavorite: new(true)}))
+	if !ok || !f.Favorite || f.TS != 1_700_000_000 || f.Width != 512 || f.Ref.Mime != "image/webp" ||
+		f.Ref.DirectPath != "/v/s" || f.Ref.Type != api.MsgSticker {
+		t.Fatalf("got %+v %v", f, ok)
+	}
+	for name, e := range map[string]*events.AppState{
+		"lottie":    ev(appstate.IndexFavoriteSticker, &waSyncAction.StickerAction{MediaKey: []byte{1}, FileEncSHA256: enc, IsLottie: new(true)}),
+		"no hash":   ev(appstate.IndexFavoriteSticker, &waSyncAction.StickerAction{MediaKey: []byte{1}}),
+		"no action": ev(appstate.IndexFavoriteSticker, nil),
+		"other":     ev(appstate.IndexPNForLIDChat, &waSyncAction.StickerAction{MediaKey: []byte{1}, FileEncSHA256: enc}),
+	} {
+		if _, ok := favoriteSticker(e); ok {
+			t.Errorf("%s: accepted", name)
+		}
+	}
+}

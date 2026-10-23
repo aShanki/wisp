@@ -63,6 +63,8 @@ public:
     Q_INVOKABLE void stageFiles(const QStringList &files, const QString &caption = {});
     Q_INVOKABLE bool stageClipboardImage(const QString &caption = {});
     Q_INVOKABLE void sendAttachments();
+    // id from the daemon's stickers.list.
+    Q_INVOKABLE void sendSticker(const QString &id);
     Q_INVOKABLE void startReply(const QString &id);
     Q_INVOKABLE void cancelReply();
     Q_INVOKABLE void userTyping();

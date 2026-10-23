@@ -184,6 +184,35 @@ func (c *Core) MediaFetch(ctx context.Context, p api.MessageRefParams) (*api.Pat
 	return &api.PathResult{Path: path, Mime: m.Media.Mime}, nil
 }
 
+// stickerListRecent caps the recent stickers in the picker, as WhatsApp does.
+const stickerListRecent = 60
+
+func (c *Core) StickersList(ctx context.Context) (*api.StickersListResult, error) {
+	sts, err := c.store.ListStickers(ctx, stickerListRecent)
+	if err != nil {
+		return nil, err
+	}
+	return &api.StickersListResult{Stickers: sts}, nil
+}
+
+func (c *Core) StickersFetch(ctx context.Context, p api.StickerParams) (*api.PathResult, error) {
+	path, _, err := c.stickerFile(ctx, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &api.PathResult{Path: path, Mime: "image/webp"}, nil
+}
+
+// stickerFile returns the cached file of sticker id, downloading it if needed.
+func (c *Core) stickerFile(ctx context.Context, id string) (string, api.Sticker, error) {
+	ref, st, err := c.store.StickerRef(ctx, id)
+	if err != nil {
+		return "", st, err
+	}
+	path, err := c.media.Fetch(ctx, ref)
+	return path, st, err
+}
+
 func (c *Core) MediaThumb(ctx context.Context, p api.MessageRefParams) (*api.PathResult, error) {
 	ref, thumb, err := c.store.GetMediaRef(ctx, p.Chat, p.ID)
 	if errors.Is(err, api.ErrNotFound) {

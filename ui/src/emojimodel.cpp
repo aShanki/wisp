@@ -75,12 +75,35 @@ void EmojiModel::load()
 
 void EmojiModel::query(const QString &text)
 {
+    setRows(rank(text, kMaxRows));
+}
+
+QStringList EmojiModel::all()
+{
+    load();
+    QStringList out;
+    out.reserve(m_entries.size());
+    const char *d = m_data.constData();
+    for (const Entry &e : std::as_const(m_entries))
+        out.append(QString::fromUtf8(d + e.emoji, e.aliases - 1 - e.emoji));
+    return out;
+}
+
+QStringList EmojiModel::search(const QString &text)
+{
+    load();
+    QStringList out;
+    for (const Row &r : rank(text.trimmed().replace(u' ', u'_'), m_entries.size()))
+        out.append(r.emoji);
+    return out;
+}
+
+QList<EmojiModel::Row> EmojiModel::rank(const QString &text, qsizetype max)
+{
     load();
     const QByteArray q = text.toLatin1().toLower();
-    if (q.isEmpty()) {
-        setRows({});
-        return;
-    }
+    if (q.isEmpty())
+        return {};
     std::array<QList<Row>, NoMatch> tiers;
     const char *d = m_data.constData();
     for (const Entry &e : std::as_const(m_entries)) {
@@ -100,13 +123,13 @@ void EmojiModel::query(const QString &text)
             }
             i = j + 1;
         }
-        if (best != NoMatch && tiers[best].size() < kMaxRows)
+        if (best != NoMatch && tiers[best].size() < max)
             tiers[best].append({QString::fromUtf8(d + e.emoji, e.aliases - 1 - e.emoji), QString::fromLatin1(name)});
     }
     QList<Row> rows;
     for (const QList<Row> &tier : tiers)
-        rows.append(tier.first(std::min(tier.size(), kMaxRows - rows.size())));
-    setRows(rows);
+        rows.append(tier.first(std::min(tier.size(), max - rows.size())));
+    return rows;
 }
 
 QString EmojiModel::lookup(const QString &alias)

@@ -32,6 +32,10 @@ type Backend interface {
 	MessagesList(ctx context.Context, p MessagesListParams) (*MessagesListResult, error)
 	MessagesSend(ctx context.Context, p SendParams) (*Message, error)
 	MessagesSendMedia(ctx context.Context, p SendMediaParams) (*Message, error)
+	MessagesSendSticker(ctx context.Context, p SendStickerParams) (*Message, error)
+
+	StickersList(ctx context.Context) (*StickersListResult, error)
+	StickersFetch(ctx context.Context, p StickerParams) (*PathResult, error)
 
 	MediaFetch(ctx context.Context, p MessageRefParams) (*PathResult, error)
 	MediaThumb(ctx context.Context, p MessageRefParams) (*PathResult, error)
@@ -119,6 +123,11 @@ type Store interface {
 	SetMediaPath(ctx context.Context, chat, id, path string) error               // cached decrypted file
 	SetMediaDirectPath(ctx context.Context, chat, id, path string) error         // after a media retry; clears the URL
 
+	// Stickers: favourites (from the phone's app state) and recent sticker messages.
+	ListStickers(ctx context.Context, recent int) ([]Sticker, error)       // favourites, then up to `recent` others
+	StickerRef(ctx context.Context, id string) (*MediaRef, Sticker, error) // ErrNotFound
+	PutFavoriteSticker(ctx context.Context, f EvFavoriteSticker) error     // or removes it when !f.Favorite
+
 	PutContacts(ctx context.Context, cs []Contact) error // merge non-empty fields
 	GetContact(ctx context.Context, jid string) (*Contact, error)
 	SetAvatar(ctx context.Context, jid, path string) error // updates chats+contacts avatar column
@@ -203,8 +212,9 @@ type WA interface {
 	SetOnline(ctx context.Context, online bool) error
 	SetMuted(ctx context.Context, chat string, until int64) error // 0 unmute, -1 forever
 	SetPinned(ctx context.Context, chat string, pinned bool) error
-	// ResyncAppState fetches the chat settings (pin, mute, archive) from
-	// scratch, re-emitting them. It does nothing before the first sync.
+	// ResyncAppState fetches the chat settings (pin, mute, archive) and
+	// favourite stickers from scratch, re-emitting them. It does nothing
+	// before the first sync.
 	ResyncAppState(ctx context.Context) error
 
 	ResolveContact(ctx context.Context, jid string) (*Contact, error) // from whatsmeow's contact store

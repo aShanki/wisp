@@ -45,6 +45,7 @@ public:
         FirstInGroupRole,
         SenderColorRole,
         HasMentionsRole,
+        SenderJidRole,
     };
 
     struct Reaction {

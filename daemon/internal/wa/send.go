@@ -95,8 +95,8 @@ func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.Outgoing
 		return nil, err
 	}
 	typ, mt := api.MsgDocument, whatsmeow.MediaDocument
-	if m.Type == api.MsgImage {
-		typ, mt = api.MsgImage, whatsmeow.MediaImage
+	if m.Type == api.MsgImage || m.Type == api.MsgSticker {
+		typ, mt = m.Type, whatsmeow.MediaImage
 	}
 	up, err := cli.Upload(ctx, m.Data, mt)
 	if err != nil {
@@ -104,7 +104,21 @@ func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.Outgoing
 	}
 	ci := replyContext(reply, to)
 	var msg *waE2E.Message
-	if typ == api.MsgImage {
+	if typ == api.MsgSticker {
+		msg = &waE2E.Message{StickerMessage: &waE2E.StickerMessage{
+			Mimetype:      new(m.Mime),
+			URL:           new(up.URL),
+			DirectPath:    new(up.DirectPath),
+			MediaKey:      up.MediaKey,
+			FileEncSHA256: up.FileEncSHA256,
+			FileSHA256:    up.FileSHA256,
+			FileLength:    new(up.FileLength),
+			Width:         new(uint32(m.Width)),
+			Height:        new(uint32(m.Height)),
+			IsAnimated:    new(m.Animated),
+			ContextInfo:   ci,
+		}}
+	} else if typ == api.MsgImage {
 		msg = &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
 			Caption:       optional(caption),
 			Mimetype:      new(m.Mime),
@@ -327,14 +341,15 @@ func (c *Client) SetPinned(ctx context.Context, chat string, pinned bool) error 
 }
 
 // ResyncAppState re-fetches the collections holding pin and archive
-// (regular_low) and mute (regular_high) from a snapshot. whatsmeow emits
-// every setting again, as on the first sync.
+// (regular_low), mute (regular_high) and favourite stickers (one of the
+// regular ones) from a snapshot. whatsmeow emits every setting again, as on
+// the first sync.
 func (c *Client) ResyncAppState(ctx context.Context) error {
 	cli, err := c.requireConnected()
 	if err != nil {
 		return err
 	}
-	for _, name := range []appstate.WAPatchName{appstate.WAPatchRegularLow, appstate.WAPatchRegularHigh} {
+	for _, name := range []appstate.WAPatchName{appstate.WAPatchRegular, appstate.WAPatchRegularLow, appstate.WAPatchRegularHigh} {
 		if v, _, err := cli.Store.AppState.GetAppStateVersion(ctx, string(name)); err != nil || v == 0 {
 			continue // never synced: whatsmeow's own first sync will do it
 		}
@@ -360,6 +375,9 @@ func (c *Client) Download(ctx context.Context, ref *api.MediaRef) ([]byte, error
 		return nil, api.ErrMediaExpired
 	}
 	data, err := cli.DownloadMediaWithPath(ctx, path, ref.FileEncSHA256, ref.FileSHA256, ref.MediaKey, mediaType(ref.Type), "", false)
+	if errors.Is(err, whatsmeow.ErrInvalidMediaSHA256) && len(ref.FileSHA256) == 0 && len(data) > 0 {
+		err = nil // a favourite sticker comes without the plain hash; the MAC still matched
+	}
 	if expired(err) {
 		return c.retryDownload(ctx, cli, ref)
 	}
