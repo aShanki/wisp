@@ -126,8 +126,11 @@ Item {
                 textFormat: TextEdit.PlainText
                 font.pixelSize: 15
                 selectByMouse: true
+                persistentSelection: true
                 selectionColor: Theme.highlight
                 selectedTextColor: Theme.text
+                ContextMenu.menu: null
+                ContextMenu.onRequested: position => textMenu.openAt(position.x, position.y)
                 leftPadding: 0
                 rightPadding: 8
                 // One line sits in the middle of the 40 px row.
@@ -212,6 +215,16 @@ Item {
     FontMetrics {
         id: fm
         font: input.font
+    }
+
+    TextMenu {
+        id: textMenu
+        objectName: "textMenu"
+        editor: input
+        paste: () => {
+            if (!Conversation.stageClipboardImage(input.text.trim()))
+                input.paste()
+        }
     }
 
     PopupMenu {

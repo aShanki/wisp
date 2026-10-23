@@ -16,7 +16,15 @@ TextField {
     selectionColor: Theme.highlight
     selectedTextColor: Theme.text
     selectByMouse: true
+    persistentSelection: true
     font.pixelSize: 15
+    ContextMenu.menu: null
+    ContextMenu.onRequested: position => textMenu.openAt(position.x, position.y)
+
+    TextMenu {
+        id: textMenu
+        editor: field
+    }
 
     background: Rectangle {
         radius: height / 2

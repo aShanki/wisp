@@ -8,8 +8,8 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-find_package(Qt6 6.8 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
-qt_standard_project_setup(REQUIRES 6.8)
+find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
+qt_standard_project_setup(REQUIRES 6.9)
 
 # Qt translation units take 300-500 MB each; keep parallelism low.
 set_property(GLOBAL PROPERTY JOB_POOLS wisp_compile=1 wisp_link=1)

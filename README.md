@@ -10,7 +10,7 @@ may break WhatsApp's terms of service.
 
 ## Build (Linux)
 
-Requirements: Go 1.26, Qt 6.8+ (Quick, QuickControls2, Svg), CMake, Ninja, and
+Requirements: Go 1.26, Qt 6.9+ (Quick, QuickControls2, Svg), CMake, Ninja, and
 a desktop with a notification server, a StatusNotifierItem tray and PipeWire.
 `make install` also needs curl, jq and ffmpeg. On Ubuntu 26.04 / Debian:
 

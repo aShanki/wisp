@@ -1007,6 +1007,34 @@ void UiTest::menuPlacement()
     QCOMPARE(viaButton(u"chatMenuButton"_s, u"chatMenu"_s, false, true, 4), QString());
     QCOMPARE(viaButton(u"attachButton"_s, u"attachMenu"_s, true, false, 8), QString());
 
+    // The composer's text menu opens at a right-click, as the browser's does
+    // in Web, with what applies to the selection.
+    QQuickItem *input = named(root, u"composerInput"_s);
+    QObject *textLoader = m_window->findChild<QObject *>(u"textMenu"_s);
+    QVERIFY(input && textLoader);
+    const QString draft = input->property("text").toString();
+    input->forceActiveFocus();
+    type(u"see you"_s);
+    key(Qt::Key_A, Qt::ControlModifier);
+    at = sceneRect(input).center();
+    rightClick(at);
+    QObject *textMenu = nullptr;
+    QTRY_VERIFY((textMenu = textLoader->property("item").value<QObject *>()));
+    QCOMPARE(menuPlaced(textMenu, atPoint(at)), QString());
+    QStringList entries;
+    for (int i = 0; i < textMenu->property("count").toInt(); ++i) {
+        QQuickItem *entry = nullptr;
+        QMetaObject::invokeMethod(textMenu, "itemAt", Q_RETURN_ARG(QQuickItem *, entry), Q_ARG(int, i));
+        if (entry && entry->isVisible())
+            entries << entry->property("text").toString();
+    }
+    QVERIFY2(entries.contains(u"Undo"_s) && entries.contains(u"Cut"_s) && entries.contains(u"Copy"_s)
+             && !entries.contains(u"Select all"_s), qPrintable(entries.join(u", "_s)));
+    shoot(u"menu-composer"_s);
+    QVERIFY(closeMenu(textMenu));
+    QCOMPARE(input->property("selectedText").toString(), draft + u"see you"_s);
+    input->setProperty("text", draft);
+
     // The smallest window.
     const QSize size = m_window->size();
     m_window->resize(m_window->minimumSize());

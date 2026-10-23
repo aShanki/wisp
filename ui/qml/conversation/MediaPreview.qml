@@ -121,8 +121,11 @@ FocusScope {
                 font.pixelSize: 15
                 wrapMode: TextEdit.Wrap
                 selectByMouse: true
+                persistentSelection: true
                 selectionColor: Theme.highlight
                 selectedTextColor: Theme.text
+                ContextMenu.menu: null
+                ContextMenu.onRequested: position => captionMenu.openAt(position.x, position.y)
                 padding: 14
                 background: null
                 onTextChanged: if (!root.restoring) Conversation.attachments.setCaption(root.currentIndex, text)
@@ -134,6 +137,14 @@ FocusScope {
                         event.accepted = true
                     } else if (event.matches(StandardKey.Paste)) {
                         event.accepted = Conversation.stageClipboardImage()
+                    }
+                }
+                TextMenu {
+                    id: captionMenu
+                    editor: caption
+                    paste: () => {
+                        if (!Conversation.stageClipboardImage())
+                            caption.paste()
                     }
                 }
             }
