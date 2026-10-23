@@ -55,7 +55,8 @@ Item {
     readonly property bool bigEmoji: emojiOnly && !isDeleted
     readonly property int emojiBox: !bigEmoji ? 0 : emojiCount === 1 ? (hasQuote ? 48 : 60) : emojiCount === 2 ? 36 : 24
     readonly property bool bareEmoji: bigEmoji && emojiCount === 1 && !hasQuote
-    readonly property bool bare: bareEmoji || type === "sticker" && isVisual
+    readonly property bool isSticker: type === "sticker" && isVisual
+    readonly property bool bare: bareEmoji || isSticker
     // A bare emoji's sender sits in its own 29 px pill, 5 px above the block.
     readonly property real emojiY: bareEmoji ? (showSender ? 40 : 12) : bubble.bodyY + 6
     readonly property bool showSender: isGroup && !fromMe && firstInGroup && !isSystem
@@ -88,14 +89,11 @@ Item {
 
     // Photos and videos are cropped as WhatsApp Web does: 330 px wide, 240
     // when portrait, the height by the aspect ratio kept within 0.71 to 4.
-    // Stickers fit in 190 px.
+    // Stickers are letterboxed in a 190 px square.
     readonly property real aspect: (mediaWidth > 0 ? mediaWidth : 4) / (mediaHeight > 0 ? mediaHeight : 3)
-    readonly property real stickerScale: Math.min(190 / (mediaWidth > 0 ? mediaWidth : 4), 338 / (mediaHeight > 0 ? mediaHeight : 3))
-    readonly property int imageW: !isVisual ? 0
-        : type === "sticker" ? Math.max(120, Math.round((mediaWidth > 0 ? mediaWidth : 4) * stickerScale))
+    readonly property int imageW: !isVisual ? 0 : isSticker ? 190
         : aspect < 1 ? 240 : Math.round(Math.min(330, maxBubble - 6))
-    readonly property int imageH: !isVisual ? 0
-        : type === "sticker" ? Math.max(80, Math.round((mediaHeight > 0 ? mediaHeight : 3) * stickerScale))
+    readonly property int imageH: !isVisual ? 0 : isSticker ? 190
         : Math.round(aspect < 1 ? 240 / Math.max(0.71, aspect) : imageW / Math.min(4, aspect))
     // Only text messages use Web's Body2 text; captions and the deleted
     // placeholder take the bubble's 14.2 px type on 19 px lines.
@@ -180,10 +178,14 @@ Item {
         visible: !root.isSystem
         readonly property real pad: root.isVisual && !root.bare ? 3 : 0
         readonly property real senderH: root.showSender ? 22 : 0
-        // The quote overlaps the padding: 3 px from the top, or 5 px under the sender.
-        readonly property real quoteY: root.showSender ? root.padT + senderH + 5 : 3
-        // Media sits 3 px inside the bubble, or 5 px under the sender.
-        readonly property real mediaY: root.hasQuote ? quoteY + quote.height + 6
+        // The quote overlaps the padding: 3 px from the top (6 on a voice
+        // note), or 5 px under the sender.
+        readonly property real quoteY: root.showSender ? root.padT + senderH + 5 : root.isAudio ? 6 : 3
+        // Media sits 3 px inside the bubble, 5 px under the sender or 3 under
+        // a quote (a voice note 8); a sticker 6 px, or 5 px under the
+        // sender's 29 px pill.
+        readonly property real mediaY: root.hasQuote ? quoteY + quote.height + (root.isAudio ? 8 : root.isVisual || root.isFile ? 3 : 6)
+            : root.isSticker ? (root.showSender ? 34 : 6)
             : root.isVisual || root.isFile && !root.isAudio ? (root.showSender ? root.padT + senderH + 5 : 3)
             : root.padT + senderH
         readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 7 : root.isFile ? file.height + 7 : 0)
@@ -191,12 +193,13 @@ Item {
         y: root.dayH + root.gap
         // Web's emoji block: 6 px above the images, 15 and 17 px beside them,
         // the image's line descent and 14 px below; a 19 px line holds the time.
+        // A sticker has 9 px before it, 4 after and its time pill 3 px under.
         // A voice note is 336 px, its player 6 px inside.
-        width: root.isVisual ? root.imageW + 2 * pad : root.bareEmoji ? root.emojiBox + 45
+        width: root.isSticker ? 203 : root.isVisual ? root.imageW + 2 * pad : root.bareEmoji ? root.emojiBox + 45
             : root.isAudio ? Math.min(336, root.maxBubble)
             : root.innerW + root.padL + root.padR
         height: root.bareEmoji ? root.emojiY + root.emojiBox + 38
-              : root.bare ? mediaY + root.imageH + 21
+              : root.isSticker ? mediaY + root.imageH + 24
               : root.bigEmoji ? bodyY + root.emojiBox + 52
               : root.hasBody ? bodyY + body.height + root.padB + (root.isDeleted ? 4 : 0)
               : root.isVisual ? mediaY + root.imageH + pad
@@ -264,13 +267,13 @@ Item {
             x: root.isVisual ? 3 : root.padL - 6
             y: bubble.quoteY
             sourceComponent: QuoteBlock {
-                width: root.isVisual ? root.imageW : root.innerW + 10
+                width: root.isVisual ? root.imageW : root.isAudio ? bubble.width - 6 : root.innerW + 10
                 quote: root.replyTo
             }
         }
         Loader {
             active: root.isVisual
-            x: bubble.pad
+            x: root.isSticker ? 9 : bubble.pad
             y: bubble.mediaY
             width: root.imageW
             height: root.imageH
@@ -282,7 +285,7 @@ Item {
                 duration: root.mediaDuration
                 loading: root.mediaLoading
                 maskColor: bubble.color
-                sticker: root.bare
+                sticker: root.isSticker
                 onClicked: root.mediaSource !== "" && !image.failed
                            ? root.imageClicked(root.mediaSource, root.mediaWidth, root.mediaHeight)
                            : Conversation.openMedia(root.msgId)
