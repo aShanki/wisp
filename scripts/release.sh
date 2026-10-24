@@ -48,7 +48,17 @@ if [[ $platform == macos-arm64 ]]; then
     done
     deploy_args=("$app" "-qmldir=$PWD/ui/qml" -always-overwrite)
     qt_libdir=${QT_LIBDIR:-/opt/homebrew/lib}
-    if [[ -d $qt_libdir ]]; then deploy_args+=("-libpath=$qt_libdir"); fi
+    if [[ -d $qt_libdir ]]; then
+        deploy_args+=("-libpath=$qt_libdir")
+        # macdeployqt propagates used runpaths to its plugin resolver. Its
+        # -libpath option alone does not reach that resolver on split Qt installs.
+        binary="$app/Contents/MacOS/wisp"
+        core=$(otool -L "$binary" | sed -n 's/^[[:space:]]*\(.*QtCore.framework\/Versions\/A\/QtCore\) (compatibility.*/\1/p')
+        if [[ -n $core && -f $qt_libdir/QtCore.framework/Versions/A/QtCore ]]; then
+            install_name_tool -add_rpath "$qt_libdir" "$binary"
+            install_name_tool -change "$core" '@rpath/QtCore.framework/Versions/A/QtCore' "$binary"
+        fi
+    fi
     "${MACDEPLOYQT:-macdeployqt}" "${deploy_args[@]}" 2>&1 | tee "$out/deployment.log"
     # macdeployqt can return success even when it could not copy a dependency.
     if grep -q '^ERROR:' "$out/deployment.log"; then
