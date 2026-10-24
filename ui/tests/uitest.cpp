@@ -1935,6 +1935,10 @@ void UiTest::mentionRendering()
              u"<a class=\"m\" href=\"mention:61400000000@s.whatsapp.net\">@You</a> hi"_s);
     QCOMPARE(Format::richText(u"*@61400000000* @614000000001 a@b"_s, {{u"61400000000@s.whatsapp.net"_s, u"You"_s}}),
              u"<b><a class=\"m\" href=\"mention:61400000000@s.whatsapp.net\">@You</a></b> @614000000001 a@b"_s);
+    // A weekday's name ends in a null: StyledText chips read up to one.
+    const QString weekday = Format::day(QDateTime::currentSecsSinceEpoch() - 3 * 86400);
+    QVERIFY(weekday.constData()[weekday.size()].isNull());
+
     m_conv->startReply(id);
     QVERIFY(m_conv->replyTo().toMap().value(u"preview"_s).toString().contains(u'@' + name));
     m_conv->cancelReply();

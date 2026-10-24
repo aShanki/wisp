@@ -53,8 +53,14 @@ QString Format::day(qint64 ts)
         return tr("Today");
     if (ago == 1)
         return tr("Yesterday");
-    if (ago > 1 && ago < 7)
-        return QLocale().dayName(d.dayOfWeek());
+    if (ago > 1 && ago < 7) {
+        // dayName() points into Qt's locale table with no terminating null,
+        // and StyledText reads up to a null, so the chip took the table's
+        // width; the copy detach() makes ends in one.
+        QString name = QLocale().dayName(d.dayOfWeek());
+        name.detach();
+        return name;
+    }
     // WhatsApp Web shows the locale's numeric date with the full year.
     QString format = QLocale().dateFormat(QLocale::ShortFormat);
     if (!format.contains(u"yyyy"))
