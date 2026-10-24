@@ -345,7 +345,12 @@ Item {
             visible: root.hasBody
             x: root.padL + (root.bigEmoji ? 15 : root.bodyIndent)
             y: root.bigEmoji ? root.emojiY + (root.emojiBox - implicitHeight) / 2
-                : bubble.bodyY + (root.isDeleted ? 3 : root.body2 ? 2 : 1)
+                : bubble.bodyY + (root.isDeleted ? 3 : root.body2 ? 2 : 1) - richDrop
+            // StyledText sets a fixed-height line's baseline at the font's
+            // ascent, RichText's QTextDocumentLayout at 4/5 of the line; lift
+            // RichText's to match. baselineOffset is the ascent in both.
+            readonly property real richDrop: textFormat === Text.RichText && lineHeightMode === Text.FixedHeight
+                ? Math.round(lineHeight * 4 / 5) - Math.round(baselineOffset) : 0
             width: root.bigEmoji ? root.emojiCount * root.emojiBox : Math.min(root.innerW - root.bodyIndent, implicitWidth)
             horizontalAlignment: root.bigEmoji ? Text.AlignHCenter : Text.AlignLeft
             text: !visible ? "" : root.bigEmoji ? root.bodyText
