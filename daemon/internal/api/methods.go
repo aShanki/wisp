@@ -54,6 +54,7 @@ type HelloParams struct {
 }
 
 type HelloResult struct {
+	PID      int    `json:"pid"`      // process to wait for during an update
 	Protocol int    `json:"protocol"` // ProtocolVersion
 	Version  string `json:"version"`  // daemon version
 	Mock     bool   `json:"mock"`

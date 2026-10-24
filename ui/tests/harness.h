@@ -60,6 +60,7 @@ inline void isolate(const QString &dir)
     qputenv("HOME", d);
     qputenv("TMPDIR", d);
     qputenv("DBUS_SESSION_BUS_ADDRESS", "unix:path=" + d + "/no-bus");
+    qputenv("WISP_UPDATES", "0");
     qputenv("QT_QPA_PLATFORM", "offscreen");
     qputenv("QT_QUICK_BACKEND", "software");
     qputenv("QT_ACCESSIBILITY", "0");

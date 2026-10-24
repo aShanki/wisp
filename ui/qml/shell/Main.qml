@@ -60,6 +60,32 @@ ApplicationWindow {
         }
     }
 
+    Rectangle {
+        anchors.top: parent.top
+        anchors.horizontalCenter: parent.horizontalCenter
+        z: 100
+        width: Math.min(parent.width - 32, 580)
+        height: updateRow.implicitHeight + 24
+        radius: 8
+        color: Theme.panel
+        border.color: Theme.divider
+        visible: Updater.available !== ""
+        Row {
+            id: updateRow
+            anchors.centerIn: parent
+            spacing: 12
+            Text {
+                anchors.verticalCenter: parent.verticalCenter
+                text: Updater.busy ? "Installing update…" : Updater.error !== "" ? Updater.error : "Update available — v" + Updater.available
+                width: 330
+                wrapMode: Text.Wrap
+                color: Theme.text
+            }
+            Button { text: "Install"; enabled: !Updater.busy; onClicked: Updater.install() }
+            Button { text: "Later"; enabled: !Updater.busy; onClicked: Updater.later() }
+        }
+    }
+
     Settings {
         id: geometry
         category: "window"

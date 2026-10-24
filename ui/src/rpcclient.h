@@ -62,6 +62,7 @@ public:
     void setActiveChat(const QString &jid);
     void reportError(const QString &message) { emit errorOccurred(message); }
 
+    qint64 daemonPid() const { return m_daemonPid; }
     bool isConnected() const { return m_connected; }
     bool callsAvailable() const { return m_connected && m_calls; }
     QString authState() const { return m_authState; }
@@ -86,6 +87,7 @@ signals:
     void errorOccurred(const QString &message);
 
 private:
+    qint64 m_daemonPid = 0;
     explicit RpcClient(QObject *parent);
     ~RpcClient() override;
 

@@ -183,6 +183,7 @@ bool RpcClient::spawnDaemon()
 
 void RpcClient::onHello(const QJsonObject &r)
 {
+    m_daemonPid = r.value("pid"_L1).toInteger();
     m_connected = true;
     m_failed = false;
     m_backoffMs = 100;
