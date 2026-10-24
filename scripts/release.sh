@@ -55,7 +55,9 @@ if [[ $platform == macos-arm64 ]]; then
         binary="$app/Contents/MacOS/wisp"
         core=$(otool -L "$binary" | sed -n 's/^[[:space:]]*\(.*QtCore.framework\/Versions\/A\/QtCore\) (compatibility.*/\1/p')
         if [[ -n $core && -f $qt_libdir/QtCore.framework/Versions/A/QtCore ]]; then
-            install_name_tool -add_rpath "$qt_libdir" "$binary"
+            if ! otool -l "$binary" | grep -Fq "path $qt_libdir ("; then
+                install_name_tool -add_rpath "$qt_libdir" "$binary"
+            fi
             install_name_tool -change "$core" '@rpath/QtCore.framework/Versions/A/QtCore' "$binary"
         fi
     fi
