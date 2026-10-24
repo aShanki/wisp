@@ -130,6 +130,7 @@ private slots:
     void emojiPanel();
     void mentionPicker();
     void mentionRendering();
+    void replyJump();
     void narrowWhileLoading();
     void messageActions();
     void unlinkClosesChat();
@@ -1975,6 +1976,53 @@ void UiTest::mentionRendering()
 }
 
 // Unlinked from the phone: the open chat and its draft go.
+// A click on a reply's quote scrolls to the original, paging older messages
+// in until it is loaded, and flashes it.
+void UiTest::replyJump()
+{
+    m_conv->open(kBig);
+    const MessageModel *model = m_conv->messages();
+    QTRY_VERIFY(model->rowCount() > 0 && !m_conv->loading());
+    QString original;
+    bool done = false;
+    RpcClient::instance()->call(u"messages.list"_s, {{u"chat"_s, kBig}, {u"limit"_s, 200}},
+                                [&](const QJsonValue &r, const QJsonObject &) {
+        const QJsonArray page = r["messages"_L1].toArray();
+        for (qsizetype i = 150; i < page.size() && original.isEmpty(); ++i)
+            if (page[i]["type"_L1] == "text"_L1)
+                original = page[i]["id"_L1].toString();
+        done = true;
+    });
+    QTRY_VERIFY(done);
+    QVERIFY(!original.isEmpty());
+    QCOMPARE(model->indexOf(original), -1);
+
+    const QString text = u"a jump from the ui test"_s;
+    QString reply;
+    RpcClient::instance()->call(u"messages.send"_s, {{u"chat"_s, kBig}, {u"text"_s, text}, {u"replyTo"_s, original}},
+                                [&](const QJsonValue &r, const QJsonObject &) { reply = r["message"_L1]["id"_L1].toString(); });
+    QTRY_VERIFY(!reply.isEmpty() && model->indexOf(reply) >= 0);
+    QQuickItem *view = findView(m_window->contentItem(), model);
+    QVERIFY(view);
+    QQuickItem *quote = nullptr;
+    QTRY_VERIFY([&] {
+        QMetaObject::invokeMethod(view, "positionViewAtIndex", Q_ARG(int, model->indexOf(reply)), Q_ARG(int, 1));
+        QQuickItem *row = itemAt(view, model->indexOf(reply));
+        for (QQuickItem *child : row ? bubbleOf(row)->childItems() : QList<QQuickItem *>())
+            if (child->inherits("QQuickLoader") && child->property("item").value<QQuickItem *>()
+                && child->property("item").value<QQuickItem *>()->property("quote").isValid()
+                && !child->property("item").value<QQuickItem *>()->property("quote").isNull())
+                quote = child->property("item").value<QQuickItem *>();
+        return quote && sceneRect(view).contains(sceneRect(quote));
+    }());
+    frame();
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, sceneRect(quote).center().toPoint());
+
+    QQuickItem *row = nullptr;
+    QTRY_VERIFY_WITH_TIMEOUT((row = model->indexOf(original) < 0 ? nullptr : itemAt(view, model->indexOf(original)))
+                                 && row->property("flash").toBool() && sceneRect(view).contains(sceneRect(bubbleOf(row))), 10000);
+}
+
 void UiTest::unlinkClosesChat()
 {
     QCOMPARE(m_conv->jid(), kBig);

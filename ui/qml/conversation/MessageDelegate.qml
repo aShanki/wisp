@@ -44,7 +44,9 @@ Item {
     property bool isGroup: false
     property real spaceWidth: 4
     property real windowWidth: width
+    property bool flash: false // set while the view shows this message as a reply's original
     signal imageClicked(string id, string source, int w, int h)
+    signal quoteClicked(string id)
 
     readonly property bool isSystem: type === "system"
     readonly property bool isDeleted: deleted || type === "revoked"
@@ -165,6 +167,29 @@ Item {
         text: visible ? root.richText : ""
     }
 
+    // A reply's original, once jumped to, under a tint that fades out.
+    onFlashChanged: {
+        tint.opacity = 0
+        if (flash)
+            fade.restart()
+        else
+            fade.stop()
+    }
+    Rectangle {
+        id: tint
+        y: root.dayH + root.gap - 2
+        width: root.width
+        height: bubble.height + 4
+        color: Theme.highlight
+        opacity: 0
+        SequentialAnimation {
+            id: fade
+            NumberAnimation { target: tint; property: "opacity"; to: 0.6; duration: 150 }
+            PauseAnimation { duration: 700 }
+            NumberAnimation { target: tint; property: "opacity"; to: 0; duration: 600 }
+        }
+    }
+
     // WhatsApp's 1 px drop shadow, without effects.
     Rectangle {
         visible: !root.isSystem && !root.bare
@@ -274,6 +299,11 @@ Item {
             sourceComponent: QuoteBlock {
                 width: root.isVisual ? root.imageW : root.isAudio ? bubble.width - 6 : root.innerW + 10
                 quote: root.replyTo
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.quoteClicked(root.replyTo.id)
+                }
             }
         }
         Loader {

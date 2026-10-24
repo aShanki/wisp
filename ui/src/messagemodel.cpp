@@ -137,7 +137,8 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
     case ReplyToRole:
         if (!m.isReply)
             return QVariant::fromValue(nullptr);
-        return QVariantMap{{u"senderName"_s, m.replySender},
+        return QVariantMap{{u"id"_s, m.replyId},
+                           {u"senderName"_s, m.replySender},
                            {u"preview"_s, m.replyPreview},
                            {u"color"_s, m.replyColor}};
     case ReactionsRole: {
@@ -208,6 +209,7 @@ MessageModel::Msg MessageModel::parse(const QJsonObject &o)
     const QJsonObject r = o["replyTo"_L1].toObject();
     if (!r.isEmpty()) {
         m.isReply = true;
+        m.replyId = r["id"_L1].toString();
         m.replySender = r["fromMe"_L1].toBool()
             ? u"You"_s : r["senderName"_L1].toString();
         m.replyPreview = r["preview"_L1].toString();
@@ -343,7 +345,7 @@ void MessageModel::replace(int row, Msg &&n)
     if (!sameText) roles << RichTextRole;
     if (n.mentions.isEmpty() != m.mentions.isEmpty()) roles << HasMentionsRole;
     if (n.emojiCount != m.emojiCount) roles << EmojiOnlyRole << EmojiCountRole;
-    if (n.isReply != m.isReply || n.replySender != m.replySender || n.replyPreview != m.replyPreview
+    if (n.isReply != m.isReply || n.replyId != m.replyId || n.replySender != m.replySender || n.replyPreview != m.replyPreview
             || n.replyColor != m.replyColor)
         roles << ReplyToRole;
     if (n.reactions != m.reactions) roles << ReactionsRole;

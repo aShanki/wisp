@@ -61,7 +61,7 @@ public:
 
     struct Msg {
         QString id, sender, senderName, type, text, status;
-        QString replySender, replyPreview;
+        QString replyId, replySender, replyPreview;
         QString fileName, path;
         QByteArray waveform;
         QList<Reaction> reactions;
@@ -94,7 +94,7 @@ public:
     // Drop a message (deleted for us); unknown ids are ignored.
     void remove(const QString &id);
 
-    int indexOf(const QString &id) const;
+    Q_INVOKABLE int indexOf(const QString &id) const;
     const Msg *find(const QString &id) const;
     const Msg *oldest() const { return m_rows.isEmpty() ? nullptr : &m_rows.last(); }
     const Msg &at(int row) const { return m_rows[row]; }

@@ -14,6 +14,9 @@ Rectangle {
     property string draftJid: ""
     property int unseen: 0
     readonly property real nbsp: space.advanceWidth("\u00a0")
+    property string jumpId: "" // a reply's original, while older pages load to find it
+    property int jumpCount: 0
+    property string flashId: ""
 
     function scrollToBottom() {
         wheel.stop()
@@ -24,6 +27,36 @@ Rectangle {
         if (Conversation.hasMore && !Conversation.loading && list.count > 0
                 && list.contentY - list.originY < list.height)
             Conversation.loadOlder()
+    }
+    // Scrolls to a reply's original and flashes it, paging older messages in
+    // until it is loaded; an original not in the history is ignored.
+    function jumpTo(id) {
+        const row = Conversation.messages.indexOf(id)
+        if (row < 0) {
+            jumpId = Conversation.hasMore ? id : ""
+            jumpCount = list.count
+            if (jumpId !== "")
+                Conversation.loadOlder()
+            return
+        }
+        jumpId = ""
+        wheel.stop()
+        list.pinned = false
+        list.positionViewAtIndex(row, ListView.Center)
+        flashId = ""
+        flashId = id
+        unflash.restart()
+    }
+    // Loading ends before the page is in the model, hence called later.
+    function afterPage() {
+        if (Conversation.loading)
+            return
+        if (jumpId === "")
+            maybeLoadOlder()
+        else if (list.count > jumpCount)
+            jumpTo(jumpId)
+        else
+            jumpId = "" // the page failed
     }
     function copyRich(rich) {
         copier.text = rich
@@ -45,6 +78,8 @@ Rectangle {
             view.draftJid = Conversation.jid
             composer.setText(view.drafts[Conversation.jid] || "")
             view.unseen = 0
+            view.jumpId = ""
+            view.flashId = ""
             list.pinned = true
         }
         function onOpened() {
@@ -60,7 +95,7 @@ Rectangle {
         }
         function onLoadingChanged() {
             if (!Conversation.loading)
-                Qt.callLater(view.maybeLoadOlder)
+                Qt.callLater(view.afterPage)
         }
     }
 
@@ -132,6 +167,8 @@ Rectangle {
             width: list.width
             isGroup: Conversation.isGroup
             spaceWidth: view.nbsp
+            flash: msgId === view.flashId
+            onQuoteClicked: id => view.jumpTo(id)
             windowWidth: view.Window.width
             onImageClicked: (id, source, w, h) => {
                 viewer.active = true
@@ -231,6 +268,12 @@ Rectangle {
                 menu.openFrom(chevron, false, hover.target.fromMe)
             }
         }
+    }
+
+    Timer {
+        id: unflash
+        interval: 1500
+        onTriggered: view.flashId = ""
     }
 
     FontMetrics {
