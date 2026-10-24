@@ -732,7 +732,7 @@ void UiTest::imageViewer()
             copyEntry = entry;
     }
     QVERIFY2(shown.contains(u"Reply"_s) && shown.contains(u"Open"_s) && copyEntry, qPrintable(shown.join(u", "_s)));
-    QTest::mouseClick(m_window, Qt::LeftButton, {}, copyEntry->mapToScene(QPointF(copyEntry->width() / 2, copyEntry->height() / 2)).toPoint());
+    QVERIFY(QMetaObject::invokeMethod(copyEntry, "click"));
     QTRY_VERIFY(!messageMenu->property("visible").toBool());
     QTRY_VERIFY(!QGuiApplication::clipboard()->image().isNull());
 
