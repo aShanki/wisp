@@ -14,6 +14,7 @@
 #include <QFileInfo>
 #include <QGuiApplication>
 #include <QImage>
+#include <QImageReader>
 #include <QJSEngine>
 #include <QJsonArray>
 #include <QLocale>
@@ -466,22 +467,21 @@ void ConversationController::stopTyping()
     m_typingChat.clear();
 }
 
-// Opens the media, downloading it first if needed.
-void ConversationController::openMedia(const QString &id)
+// Calls done with the media's local path, downloading it first if needed.
+void ConversationController::withMediaPath(const QString &id, std::function<void(const QString &)> done)
 {
-    const auto open = [](const QString &path) { QDesktopServices::openUrl(QUrl::fromLocalFile(path)); };
     const MessageModel::Msg *m = m_model->find(id);
     if (!m || !m->hasMedia)
         return;
     if (!m->path.isEmpty() && QFileInfo::exists(m->path)) {
-        open(m->path);
+        done(m->path);
         return;
     }
     m_model->setMediaLoading(id, true);
     const quint64 gen = m_gen;
     RpcClient::instance()->call(
         u"media.fetch"_s, {{u"chat"_s, m_jid}, {u"id"_s, id}},
-        [this, gen, id, open](const QJsonValue &result, const QJsonObject &e) {
+        [this, gen, id, done = std::move(done)](const QJsonValue &result, const QJsonObject &e) {
             if (gen != m_gen)
                 return;
             if (!e.isEmpty()) {
@@ -492,6 +492,27 @@ void ConversationController::openMedia(const QString &id)
             const QString path = result["path"_L1].toString();
             m_model->setMediaPath(id, path);
             if (!path.isEmpty())
-                open(path);
+                done(path);
         });
+}
+
+// Opens the media, downloading it first if needed.
+void ConversationController::openMedia(const QString &id)
+{
+    withMediaPath(id, [](const QString &path) { QDesktopServices::openUrl(QUrl::fromLocalFile(path)); });
+}
+
+// Puts the full-size image on the clipboard.
+void ConversationController::copyImage(const QString &id)
+{
+    withMediaPath(id, [](const QString &path) {
+        QImageReader reader(path);
+        reader.setAutoTransform(true);
+        const QImage image = reader.read();
+        if (image.isNull()) {
+            RpcClient::instance()->reportError(u"Could not copy the image"_s);
+            return;
+        }
+        QGuiApplication::clipboard()->setImage(image);
+    });
 }

@@ -127,6 +127,7 @@ T.Popup {
 
             ListView {
                 id: list
+                WheelScroll { flickable: list }
                 visible: search.text === ""
                 x: 8
                 anchors.top: search.bottom
@@ -135,6 +136,7 @@ T.Popup {
                 width: parent.width - 16
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
+                acceptedButtons: Qt.NoButton
                 model: root.sections
                 readonly property int currentSection: {
                     const i = indexAt(0, contentY + 8)
@@ -169,6 +171,7 @@ T.Popup {
 
             GridView {
                 id: results
+                WheelScroll { flickable: results }
                 visible: search.text !== ""
                 x: 8
                 anchors.top: search.bottom
@@ -177,6 +180,7 @@ T.Popup {
                 width: parent.width - 16
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
+                acceptedButtons: Qt.NoButton
                 cellWidth: root.cell
                 cellHeight: root.cell
                 model: visible ? EmojiSearch.search(search.text) : []
@@ -247,6 +251,7 @@ T.Popup {
 
             GridView {
                 id: stickerGrid
+                WheelScroll { flickable: stickerGrid }
                 objectName: "stickerGrid"
                 x: 8
                 anchors.top: stickerTitle.bottom
@@ -254,6 +259,7 @@ T.Popup {
                 width: parent.width - 16
                 clip: true
                 boundsBehavior: Flickable.StopAtBounds
+                acceptedButtons: Qt.NoButton
                 cellWidth: width / Math.max(1, Math.floor(width / 104))
                 cellHeight: 104
                 model: stickers.favorites ? stickers.favoriteList : stickers.recentList

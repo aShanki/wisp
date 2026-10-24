@@ -15,6 +15,7 @@ Rectangle {
     readonly property real nbsp: space.advanceWidth("\u00a0")
 
     function scrollToBottom() {
+        wheel.stop()
         list.positionViewAtBeginning()
         list.pinned = true
     }
@@ -87,8 +88,14 @@ Rectangle {
         model: Conversation.messages
         verticalLayoutDirection: ListView.BottomToTop
         reuseItems: true
-        cacheBuffer: 600
+        // Rows, and their images, are built well before they scroll in and
+        // kept a while after, so images don't blank and reload mid-scroll.
+        cacheBuffer: 2000
         boundsBehavior: Flickable.StopAtBounds
+        // A mouse drag doesn't pull the list as a finger would; WheelScroll
+        // scrolls it for the wheel and trackpad. Whole pixels keep text from shimmering.
+        acceptedButtons: Qt.NoButton
+        pixelAligned: true
         topMargin: 8
         bottomMargin: 8
 
@@ -102,13 +109,16 @@ Rectangle {
             pinned = count === 0 || newest !== null && newest.y + newest.height - contentY <= height + 1
         }
         onPinnedChanged: if (pinned) view.unseen = 0
-        onMovementStarted: pinned = false
+        onMovementStarted: {
+            wheel.stop()
+            pinned = false
+        }
         onMovementEnded: updatePinned()
         onContentYChanged: {
             if (!moving && height === laidOutHeight)
                 updatePinned()
             view.maybeLoadOlder()
-            hover.target = null
+            hover.retarget()
         }
         onHeightChanged: {
             if (pinned)
@@ -122,10 +132,10 @@ Rectangle {
             isGroup: Conversation.isGroup
             spaceWidth: view.nbsp
             windowWidth: view.Window.width
-            onImageClicked: (source, w, h) => {
+            onImageClicked: (id, source, w, h) => {
                 viewer.active = true
                 const v = viewer.item as ImageViewer
-                v.show(source, w, h)
+                v.show(id, source, w, h)
             }
         }
 
@@ -144,18 +154,30 @@ Rectangle {
                 menu.openAt(list.contentItem, p.x, p.y)
             }
         }
+        WheelScroll {
+            id: wheel
+            flickable: list
+            onScrolled: list.pinned = false
+            onSettled: list.updatePinned()
+        }
         // One shared hover chevron instead of one per row.
         HoverHandler {
             id: hover
             property MessageDelegate target: null
-            onPointChanged: {
+            // The bubble under the pointer, also as the list scrolls under it.
+            function retarget() {
                 if (chevronHover.hovered)
                     return
+                if (!hovered) {
+                    target = null
+                    return
+                }
                 const p = list.contentItem.mapFromItem(null, point.scenePosition)
                 const item = list.itemAt(p.x, p.y) as MessageDelegate
                 const b = menu.offers(item) && !item.bare ? item.bubbleItem : null
                 target = b && b.contains(b.mapFromItem(null, point.scenePosition)) ? item : null
             }
+            onPointChanged: retarget()
             onHoveredChanged: if (!hovered && !chevronHover.hovered) target = null
         }
     }

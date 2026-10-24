@@ -260,11 +260,13 @@ FocusScope {
         focus: true
         reuseItems: true
         cacheBuffer: 0
+        acceptedButtons: Qt.NoButton
         currentIndex: -1
         boundsBehavior: Flickable.StopAtBounds
         highlightFollowsCurrentItem: false
         model: ChatList
         ScrollBar.vertical: ScrollLine {}
+        WheelScroll { flickable: list }
 
         delegate: ChatRow {
             id: row

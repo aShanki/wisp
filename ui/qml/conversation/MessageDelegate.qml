@@ -42,7 +42,7 @@ Item {
     property bool isGroup: false
     property real spaceWidth: 4
     property real windowWidth: width
-    signal imageClicked(string source, int w, int h)
+    signal imageClicked(string id, string source, int w, int h)
 
     readonly property bool isSystem: type === "system"
     readonly property bool isDeleted: deleted || type === "revoked"
@@ -290,7 +290,7 @@ Item {
                 maskColor: bubble.color
                 sticker: root.isSticker
                 onClicked: root.mediaSource !== "" && !image.failed
-                           ? root.imageClicked(root.mediaSource, root.mediaWidth, root.mediaHeight)
+                           ? root.imageClicked(root.msgId, root.mediaSource, root.mediaWidth, root.mediaHeight)
                            : Conversation.openMedia(root.msgId)
             }
         }

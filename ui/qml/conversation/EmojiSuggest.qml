@@ -118,6 +118,7 @@ Rectangle {
         anchors.margins: 6
         model: EmojiSearch
         interactive: contentHeight > height
+        acceptedButtons: Qt.NoButton
         clip: true
         keyNavigationWraps: true
         delegate: Suggestion {

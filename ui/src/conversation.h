@@ -8,6 +8,7 @@
 #include <QString>
 #include <QVariant>
 #include <QtQml/qqmlregistration.h>
+#include <functional>
 
 #include "messagemodel.h"
 #include "attachmentmodel.h"
@@ -69,6 +70,7 @@ public:
     Q_INVOKABLE void cancelReply();
     Q_INVOKABLE void userTyping();
     Q_INVOKABLE void openMedia(const QString &id);
+    Q_INVOKABLE void copyImage(const QString &id);
 
 signals:
     void jidChanged();
@@ -96,6 +98,7 @@ private:
     void sendMessage(const QString &method, QJsonObject params, const QString &tmp = {});
     void stopTyping();
     void fail(const QJsonObject &error, const QString &what);
+    void withMediaPath(const QString &id, std::function<void(const QString &)> done);
 
     MessageModel *m_model;
     AttachmentModel *m_attachments;

@@ -11,6 +11,7 @@ PopupMenu {
     function canReply(m) { return !m.isDeleted && !Conversation.readOnly }
     function canCopy(m) { return !m.isDeleted && m.richText !== "" }
     function canOpen(m) { return !m.isDeleted && m.hasMedia }
+    function canCopyImage(m) { return canOpen(m) && (m.type === "image" || m.isSticker) }
     // Whether m gets a menu at all: deleted and system messages don't.
     function offers(m) { return !!m && !m.isSystem && (canReply(m) || canCopy(m) || canOpen(m)) }
 
@@ -25,6 +26,11 @@ PopupMenu {
         text: "Copy"
         enabled: !!menu.target && menu.canCopy(menu.target)
         onTriggered: menu.copyRequested(menu.target.richText)
+    }
+    PopupMenu.Entry {
+        text: "Copy image"
+        enabled: !!menu.target && menu.canCopyImage(menu.target)
+        onTriggered: Conversation.copyImage(menu.target.msgId)
     }
     PopupMenu.Entry {
         text: menu.target && menu.target.mediaSource !== "" ? "Open" : "Download"
