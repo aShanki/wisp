@@ -12,6 +12,14 @@ Item {
     property bool group: false
     property int size: Theme.avatarSize
     property color maskColor: Theme.panel
+    // When set, a picture-less avatar shows the name's initial in this colour.
+    property color initialColor: "transparent"
+    readonly property string initial: {
+        if (initialColor.a === 0 || name === "")
+            return ""
+        const c = String.fromCodePoint(name.codePointAt(0))
+        return c.toUpperCase() !== c.toLowerCase() ? c.toUpperCase() : ""
+    }
 
     width: size
     height: size
@@ -22,10 +30,20 @@ Item {
         color: Theme.dark ? "#242626" : "#eeeeee"
 
         Icon {
+            visible: root.initial === ""
             anchors.centerIn: parent
             size: Math.round(root.size * 0.6)
             name: root.group ? "group" : "person"
             color: Theme.dark ? "#bdbdbd" : "#757778"
+        }
+        Text {
+            visible: root.initial !== ""
+            anchors.centerIn: parent
+            text: root.initial
+            textFormat: Text.PlainText
+            color: root.initialColor
+            font.pixelSize: Math.round(root.size * 0.5)
+            font.weight: Font.Medium
         }
     }
 

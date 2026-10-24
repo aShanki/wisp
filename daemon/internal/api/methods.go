@@ -17,9 +17,13 @@ const (
 	MChatsSetMuted  = "chats.setMuted"
 	MChatsSetPinned = "chats.setPinned"
 
-	MMessagesList      = "messages.list"
-	MMessagesSend      = "messages.send"
-	MMessagesSendMedia = "messages.sendMedia"
+	MMessagesList        = "messages.list"
+	MMessagesSend        = "messages.send"
+	MMessagesSendMedia   = "messages.sendMedia"
+	MMessagesSendSticker = "messages.sendSticker"
+
+	MStickersList  = "stickers.list"
+	MStickersFetch = "stickers.fetch"
 
 	MMediaFetch = "media.fetch"
 	MMediaThumb = "media.thumb"
@@ -134,6 +138,29 @@ type SendMediaParams struct {
 	Path    string `json:"path"` // absolute local file path
 	Caption string `json:"caption"`
 	ReplyTo string `json:"replyTo"`
+}
+
+type SendStickerParams struct {
+	Chat    string `json:"chat"`
+	Sticker string `json:"sticker"` // Sticker.ID from stickers.list
+	ReplyTo string `json:"replyTo"`
+}
+
+type StickerParams struct {
+	ID string `json:"id"`
+}
+
+// Sticker is one sticker in the picker: a favourite synced from the phone or
+// one we sent recently.
+type Sticker struct {
+	ID       string `json:"id"` // hex SHA-256 of the encrypted file
+	Favorite bool   `json:"favorite"`
+	Width    int    `json:"width"`
+	Height   int    `json:"height"`
+}
+
+type StickersListResult struct {
+	Stickers []Sticker `json:"stickers"` // favourites first, then the most recent
 }
 
 type MessageResult struct {

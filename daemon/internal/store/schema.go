@@ -127,6 +127,22 @@ ALTER TABLE contacts DROP COLUMN phone;
 	`
 ALTER TABLE messages ADD COLUMN mentions TEXT NOT NULL DEFAULT ''; -- JSON [{"jid", "me"}], '' = none
 `,
+	// 4: stickers for the picker: recent sticker messages, and favourites from the phone.
+	`
+CREATE INDEX messages_stickers ON messages(ts) WHERE type = 'sticker';
+CREATE TABLE sticker_favorites (
+	id              TEXT PRIMARY KEY,          -- hex file_enc_sha256
+	ts              INTEGER NOT NULL DEFAULT 0,
+	mime            TEXT NOT NULL DEFAULT '',
+	width           INTEGER NOT NULL DEFAULT 0,
+	height          INTEGER NOT NULL DEFAULT 0,
+	direct_path     TEXT NOT NULL DEFAULT '',
+	url             TEXT NOT NULL DEFAULT '',
+	media_key       BLOB,
+	file_enc_sha256 BLOB,
+	file_length     INTEGER NOT NULL DEFAULT 0
+) WITHOUT ROWID;
+`,
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

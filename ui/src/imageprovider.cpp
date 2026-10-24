@@ -3,6 +3,7 @@
 #include "rpcclient.h"
 
 #include <QImageReader>
+#include <QPainter>
 #include <QThreadPool>
 
 #include <atomic>
@@ -37,6 +38,24 @@ QImage decode(const QString &path, QSize want)
             reader.setScaledSize((QSizeF(src) * s).toSize().expandedTo({1, 1}));
     }
     return reader.read();
+}
+
+// Avatars arrive as circles, so they sit on any background (the wallpaper too)
+// without a mask.
+QImage circle(const QImage &src)
+{
+    if (src.isNull())
+        return src;
+    const int d = qMin(src.width(), src.height());
+    QImage out(d, d, QImage::Format_ARGB32_Premultiplied);
+    out.fill(Qt::transparent);
+    QPainter p(&out);
+    p.setRenderHint(QPainter::Antialiasing);
+    p.setPen(Qt::NoPen);
+    p.setBrush(src);
+    p.setBrushOrigin(-(src.width() - d) / 2, -(src.height() - d) / 2);
+    p.drawEllipse(0, 0, d, d);
+    return out;
 }
 
 // A missing avatar is a transparent 1x1. Missing media is an error, which the
@@ -79,13 +98,17 @@ private:
 QQuickImageResponse *ImageProvider::requestImageResponse(const QString &id, const QSize &requestedSize)
 {
     const QStringList parts = id.split(u'/');
-    const bool media = parts.size() == 3 && (parts[0] == "thumb"_L1 || parts[0] == "media"_L1);
+    const bool sticker = parts.size() == 2 && parts[0] == "sticker"_L1;
+    const bool media = sticker || parts.size() == 3 && (parts[0] == "thumb"_L1 || parts[0] == "media"_L1);
     auto *response = new Response(media);
     QString method;
     QJsonObject params;
     if (parts.size() == 2 && parts[0] == "avatar"_L1) {
         method = u"avatars.get"_s;
         params = {{u"jid"_s, parts[1]}};
+    } else if (sticker) {
+        method = u"stickers.fetch"_s;
+        params = {{u"id"_s, parts[1]}};
     } else if (media) {
         method = parts[0] == "thumb"_L1 ? u"media.thumb"_s : u"media.fetch"_s;
         params = {{u"chat"_s, parts[1]}, {u"id"_s, parts[2]}};
@@ -95,7 +118,7 @@ QQuickImageResponse *ImageProvider::requestImageResponse(const QString &id, cons
     }
 
     // Called on the image loader thread; RPC lives on the GUI thread.
-    QMetaObject::invokeMethod(RpcClient::instance(), [response, method, params, requestedSize] {
+    QMetaObject::invokeMethod(RpcClient::instance(), [response, media, method, params, requestedSize] {
         if (response->m_cancelled) {
             response->finish({});
             return;
@@ -107,7 +130,10 @@ QQuickImageResponse *ImageProvider::requestImageResponse(const QString &id, cons
                 return;
             }
             decodePool()->start([=] {
-                response->finish(response->m_cancelled ? QImage() : decode(path, requestedSize));
+                if (response->m_cancelled)
+                    response->finish({});
+                else
+                    response->finish(media ? decode(path, requestedSize) : circle(decode(path, requestedSize)));
             });
         });
     }, Qt::QueuedConnection);

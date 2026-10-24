@@ -7,6 +7,7 @@
 #include <QByteArray>
 #include <QList>
 #include <QString>
+#include <QStringList>
 #include <QtQml/qqmlregistration.h>
 
 class EmojiModel : public QAbstractListModel
@@ -37,6 +38,10 @@ public:
     Q_INVOKABLE void query(const QString &text);
     // The emoji with exactly this alias, or "".
     Q_INVOKABLE QString lookup(const QString &alias);
+    // For the emoji panel: every emoji in gemoji's (category) order, and all
+    // matches of `text` ranked as in query().
+    Q_INVOKABLE QStringList all();
+    Q_INVOKABLE QStringList search(const QString &text);
 
 signals:
     void countChanged();
@@ -51,6 +56,7 @@ private:
     };
 
     void load();
+    QList<Row> rank(const QString &text, qsizetype max);
     void setRows(const QList<Row> &rows);
 
     bool m_loaded = false;

@@ -56,7 +56,7 @@ func (c *Core) handle(ev api.WAEvent) {
 
 	switch ev.(type) {
 	case api.EvMessage, api.EvHistory, api.EvReceipt, api.EvReaction, api.EvEdit, api.EvRevoke,
-		api.EvChatMeta, api.EvContacts, api.EvAvatarChanged, api.EvCallOffer:
+		api.EvChatMeta, api.EvContacts, api.EvAvatarChanged, api.EvCallOffer, api.EvFavoriteSticker:
 		if !c.wa.IsLoggedIn() {
 			return // left over from a session that was logged out and wiped
 		}
@@ -152,6 +152,10 @@ func (c *Core) handle(ev api.WAEvent) {
 		c.emitEv(api.ETyping, api.TypingEvent{
 			Chat: e.Chat, JID: who, Name: c.displayName(ctx, who), Typing: e.Typing, Kind: kind,
 		})
+	case api.EvFavoriteSticker:
+		if err := c.store.PutFavoriteSticker(ctx, e); err != nil {
+			c.logErr("favourite sticker", err)
+		}
 	case api.EvAvatarChanged:
 		// Network fetch: don't hold up the event loop.
 		c.wg.Add(1)
@@ -257,8 +261,9 @@ func (c *Core) onHistory(ctx context.Context, h *api.EvHistory) {
 }
 
 // settingResynced marks a database whose chat settings were fetched again
-// after history sync stopped clearing them. Not shown by settings.get.
-const settingResynced = "internal.appStateResynced"
+// after history sync stopped clearing them, and again (v2) to pick up the
+// favourite stickers synced before wisp stored them. Not shown by settings.get.
+const settingResynced = "internal.appStateResynced2"
 
 // resyncAppState re-fetches pin, mute and archive state in the background,
 // then returns the sync's garbage to the OS.
