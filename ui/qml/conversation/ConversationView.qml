@@ -3,6 +3,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Controls
+import QtQuick.Templates as T
 import Wisp
 
 Rectangle {
@@ -335,6 +336,136 @@ Rectangle {
             composer.focusInput()
         }
         onCopyRequested: rich => view.copyRich(rich)
+        onReactRequested: (id, mine) => reactions.show(id, mine, menu.x, menu.y)
+        onDeleteRequested: (id, forEveryone) => {
+            deleteConfirm.msgId = id
+            deleteConfirm.forEveryone = forEveryone
+            deleteConfirm.open()
+        }
+    }
+
+    // WhatsApp's quick reactions; picking ours again takes it back. + opens
+    // every emoji.
+    T.Popup {
+        id: reactions
+        objectName: "reactionPicker"
+        property string msgId
+        property string mine
+        function show(id, current, atX, atY) {
+            msgId = id
+            mine = current
+            x = Math.max(0, Math.min(atX, parent.width - width))
+            y = Math.max(0, Math.min(atY, parent.height - height))
+            open()
+        }
+        function pick(emoji) {
+            Conversation.react(msgId, emoji === mine ? "" : emoji)
+            close()
+        }
+        function more() {
+            reactPanel.msgId = msgId
+            reactPanel.mine = mine
+            reactPanel.x = Math.max(0, Math.min(x + width - reactPanel.width, parent.width - reactPanel.width))
+            reactPanel.y = Math.max(0, Math.min(y, parent.height - reactPanel.height))
+            close()
+            reactPanel.open()
+        }
+        parent: T.Overlay.overlay
+        popupType: T.Popup.Item
+        padding: 6
+        background: Rectangle {
+            radius: 26
+            color: Theme.elevated
+            border.width: 1
+            border.color: Theme.divider
+        }
+        // A template Popup has no size of its own: without these it is 0x0
+        // and its card doesn't show.
+        implicitWidth: implicitContentWidth + leftPadding + rightPadding
+        implicitHeight: implicitContentHeight + topPadding + bottomPadding
+        contentItem: Item {
+            implicitWidth: quick.width
+            implicitHeight: quick.height
+            Row {
+                id: quick
+                spacing: 2
+                Repeater {
+                    model: ["👍", "❤️", "😂", "😮", "😢", "🙏"]
+                    delegate: Rectangle {
+                        id: cell
+                        required property string modelData
+                        width: 40
+                        height: 40
+                        radius: 20
+                        color: cell.modelData === reactions.mine ? Theme.selected
+                             : mouse.containsMouse ? Theme.hover : "transparent"
+                        Text {
+                            anchors.centerIn: parent
+                            text: cell.modelData
+                            textFormat: Text.PlainText
+                            font.pixelSize: 24
+                        }
+                        MouseArea {
+                            id: mouse
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: reactions.pick(cell.modelData)
+                        }
+                    }
+                }
+                Rectangle {
+                    objectName: "moreReactions"
+                    width: 40
+                    height: 40
+                    radius: 20
+                    color: moreMouse.containsMouse ? Theme.hover : Theme.selected
+                    Icon {
+                        anchors.centerIn: parent
+                        name: "add"
+                        size: 22
+                    }
+                    MouseArea {
+                        id: moreMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: reactions.more()
+                    }
+                }
+            }
+        }
+        onClosed: if (!reactPanel.visible) composer.focusInput()
+    }
+
+    // Every emoji, to react with any; closes on the first pick.
+    EmojiPanel {
+        id: reactPanel
+        objectName: "reactPanel"
+        property string msgId
+        property string mine
+        parent: T.Overlay.overlay
+        popupType: T.Popup.Item
+        emojiOnly: true
+        width: Math.min(400, view.width - 16)
+        height: Math.min(440, view.height - 16)
+        closePolicy: T.Popup.CloseOnEscape | T.Popup.CloseOnPressOutside
+        onPicked: emoji => {
+            Conversation.react(msgId, emoji === mine ? "" : emoji)
+            close()
+        }
+        onClosed: composer.focusInput()
+    }
+
+    Sheet {
+        id: deleteConfirm
+        objectName: "deleteConfirm"
+        property string msgId
+        property bool forEveryone
+        text: forEveryone ? "Delete this message for everyone in the chat?" : "Delete this message for you? Others will still see it."
+        acceptText: forEveryone ? "Delete for everyone" : "Delete for me"
+        onAccepted: forEveryone ? Conversation.deleteForEveryone(msgId) : Conversation.deleteForMe(msgId)
+        onClosed: composer.focusInput()
     }
 
     // Copies a message's text to the clipboard (rich and plain).

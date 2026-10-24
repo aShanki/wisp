@@ -34,6 +34,7 @@ type fakeWA struct {
 	online       []bool
 	connected    bool
 	pins         []api.SetPinnedParams
+	acts         []string // "react <id> <emoji>", "revoke <id>", "deleteForMe <id>"
 	resyncs      int
 	rejected     []string
 	members      map[string][]api.GroupMember
@@ -141,6 +142,19 @@ func (w *fakeWA) SetOnline(ctx context.Context, online bool) error {
 	defer w.mu.Unlock()
 	w.online = append(w.online, online)
 	return nil
+}
+func (w *fakeWA) act(s string) error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.acts = append(w.acts, s)
+	return w.sendErr
+}
+func (w *fakeWA) React(ctx context.Context, m *api.Message, emoji string) error {
+	return w.act("react " + m.ID + " " + emoji)
+}
+func (w *fakeWA) Revoke(ctx context.Context, m *api.Message) error { return w.act("revoke " + m.ID) }
+func (w *fakeWA) DeleteForMe(ctx context.Context, m *api.Message) error {
+	return w.act("deleteForMe " + m.ID)
 }
 func (w *fakeWA) SetMuted(ctx context.Context, chat string, until int64) error { return nil }
 func (w *fakeWA) SetPinned(ctx context.Context, chat string, pinned bool) error {

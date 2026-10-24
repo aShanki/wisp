@@ -55,7 +55,7 @@ func (c *Core) handle(ev api.WAEvent) {
 	defer c.writeMu.Unlock()
 
 	switch ev.(type) {
-	case api.EvMessage, api.EvHistory, api.EvReceipt, api.EvReaction, api.EvEdit, api.EvRevoke,
+	case api.EvMessage, api.EvHistory, api.EvReceipt, api.EvReaction, api.EvEdit, api.EvRevoke, api.EvDeleteForMe,
 		api.EvChatMeta, api.EvContacts, api.EvAvatarChanged, api.EvCallOffer, api.EvFavoriteSticker:
 		if !c.wa.IsLoggedIn() {
 			return // left over from a session that was logged out and wiped
@@ -115,6 +115,10 @@ func (c *Core) handle(ev api.WAEvent) {
 			return
 		}
 		c.emitUpdates(ctx, e.Chat, m)
+	case api.EvDeleteForMe:
+		if err := c.removeMessage(ctx, e.Chat, e.ID); err != nil {
+			c.logErr("delete for me", err, "chat", e.Chat, "id", e.ID)
+		}
 	case api.EvChatMeta:
 		if e.Patch.JID == "" {
 			return

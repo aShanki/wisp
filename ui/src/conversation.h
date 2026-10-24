@@ -71,6 +71,10 @@ public:
     Q_INVOKABLE void userTyping();
     Q_INVOKABLE void openMedia(const QString &id);
     Q_INVOKABLE void copyImage(const QString &id);
+    // emoji "" removes our reaction.
+    Q_INVOKABLE void react(const QString &id, const QString &emoji);
+    Q_INVOKABLE void deleteForEveryone(const QString &id);
+    Q_INVOKABLE void deleteForMe(const QString &id);
 
 signals:
     void jidChanged();
@@ -98,6 +102,7 @@ private:
     void sendMessage(const QString &method, QJsonObject params, const QString &tmp = {});
     void stopTyping();
     void fail(const QJsonObject &error, const QString &what);
+    void act(const QString &method, QJsonObject params, const QString &what);
     void withMediaPath(const QString &id, std::function<void(const QString &)> done);
 
     MessageModel *m_model;

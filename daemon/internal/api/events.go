@@ -7,6 +7,7 @@ const (
 	EConnectionState     = "connection.state"
 	EMessageNew          = "message.new"
 	EMessageUpdate       = "message.update"
+	EMessageRemove       = "message.remove"
 	EChatUpdate          = "chat.update"
 	EPresence            = "presence"
 	ETyping              = "typing"
@@ -34,6 +35,12 @@ type ConnectionStateEvent struct {
 
 type MessageEvent struct {
 	Message Message `json:"message"`
+}
+
+// MessageRemoveEvent: a message was deleted for us only; drop it.
+type MessageRemoveEvent struct {
+	Chat string `json:"chat"`
+	ID   string `json:"id"`
 }
 
 type ChatEvent struct {
@@ -173,6 +180,12 @@ type EvRevoke struct {
 	ID   string
 }
 
+// EvDeleteForMe: a message was deleted for us only, on another device.
+type EvDeleteForMe struct {
+	Chat string
+	ID   string
+}
+
 // EvChatMeta: chat metadata changed (app state sync from the phone, group
 // rename, read on another device, ...).
 type EvChatMeta struct{ Patch ChatPatch }
@@ -245,6 +258,7 @@ func (EvReceipt) isWAEvent()         {}
 func (EvReaction) isWAEvent()        {}
 func (EvEdit) isWAEvent()            {}
 func (EvRevoke) isWAEvent()          {}
+func (EvDeleteForMe) isWAEvent()     {}
 func (EvChatMeta) isWAEvent()        {}
 func (EvContacts) isWAEvent()        {}
 func (EvPresence) isWAEvent()        {}

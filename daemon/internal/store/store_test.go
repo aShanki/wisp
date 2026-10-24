@@ -1372,3 +1372,25 @@ func TestHistoryKeepsChatSettings(t *testing.T) {
 		t.Errorf("chat %+v", c)
 	}
 }
+
+func TestDeleteMessageUnreadCount(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	put(t, s, txt(alice, "read", 100, "read"), true)
+	if err := s.MarkRead(ctx, alice); err != nil {
+		t.Fatal(err)
+	}
+	put(t, s, txt(alice, "unread", 200, "unread"), true)
+	if err := s.DeleteMessage(ctx, alice, "read"); err != nil {
+		t.Fatal(err)
+	}
+	if c := mustChat(t, s, alice); c.Unread != 1 {
+		t.Fatalf("deleting read message changed unread to %d", c.Unread)
+	}
+	if err := s.DeleteMessage(ctx, alice, "unread"); err != nil {
+		t.Fatal(err)
+	}
+	if c := mustChat(t, s, alice); c.Unread != 0 || c.LastMessage != nil {
+		t.Fatalf("deleted last unread message: %+v", c)
+	}
+}

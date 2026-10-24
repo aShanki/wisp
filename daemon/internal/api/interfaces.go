@@ -33,6 +33,11 @@ type Backend interface {
 	MessagesSend(ctx context.Context, p SendParams) (*Message, error)
 	MessagesSendMedia(ctx context.Context, p SendMediaParams) (*Message, error)
 	MessagesSendSticker(ctx context.Context, p SendStickerParams) (*Message, error)
+	MessagesReact(ctx context.Context, p ReactParams) error
+	// MessagesRevoke deletes one of our messages for everyone.
+	MessagesRevoke(ctx context.Context, p MessageRefParams) error
+	// MessagesDeleteForMe removes a message here and on our other devices.
+	MessagesDeleteForMe(ctx context.Context, p MessageRefParams) error
 
 	StickersList(ctx context.Context) (*StickersListResult, error)
 	StickersFetch(ctx context.Context, p StickerParams) (*PathResult, error)
@@ -111,6 +116,9 @@ type Store interface {
 	ApplyEdit(ctx context.Context, chat, id, text string, mentions []Mention, ts int64) (*Message, error)
 	ApplyRevoke(ctx context.Context, chat, id string) (*Message, error)
 	ApplyReaction(ctx context.Context, r EvReaction) (*Message, error)
+	// DeleteMessage removes a message, its media row and reactions, and
+	// repoints the chat's last message.
+	DeleteMessage(ctx context.Context, chat, id string) error
 
 	MarkRead(ctx context.Context, chat string) error // unread = 0, markedUnread = false
 	// UnreadIncoming lists incoming messages after the last one we marked
@@ -211,6 +219,11 @@ type WA interface {
 	SubscribePresence(ctx context.Context, jid string) error
 	SetOnline(ctx context.Context, online bool) error
 	SetMuted(ctx context.Context, chat string, until int64) error // 0 unmute, -1 forever
+	// React, Revoke and DeleteForMe act on the message key m.Chat/m.ID;
+	// m.Sender and m.FromMe say whose message it is.
+	React(ctx context.Context, m *Message, emoji string) error
+	Revoke(ctx context.Context, m *Message) error
+	DeleteForMe(ctx context.Context, m *Message) error
 	SetPinned(ctx context.Context, chat string, pinned bool) error
 	// ResyncAppState fetches the chat settings (pin, mute, archive) and
 	// favourite stickers from scratch, re-emitting them. It does nothing

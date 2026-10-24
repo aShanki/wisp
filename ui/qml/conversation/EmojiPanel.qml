@@ -19,6 +19,7 @@ T.Popup {
     signal stickerPicked(string id)
 
     property string mode: "emoji" // or "sticker"; kept between openings
+    property bool emojiOnly: false // no sticker switcher (reactions)
     readonly property int cell: 44
     readonly property int maxRecent: 32
     // gemoji lists emoji in category order; each category starts at `first`.
@@ -50,7 +51,7 @@ T.Popup {
         picked(emoji)
     }
     function show(m) {
-        mode = m
+        mode = emojiOnly ? "emoji" : m
         if (m === "emoji") {
             search.clear()
             search.forceActiveFocus()
@@ -89,7 +90,7 @@ T.Popup {
             visible: root.mode === "emoji"
             width: parent.width
             anchors.top: parent.top
-            anchors.bottom: switcher.top
+            anchors.bottom: switcher.visible ? switcher.top : parent.bottom
             anchors.bottomMargin: 8
 
             // Category tabs; the one being shown is underlined.
@@ -300,6 +301,7 @@ T.Popup {
         // Emoji | Sticker, as WhatsApp's pill at the bottom.
         Rectangle {
             id: switcher
+            visible: !root.emojiOnly
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 10

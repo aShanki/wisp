@@ -54,9 +54,11 @@ type Backend struct {
 type chat struct {
 	spec     *chatSpec
 	row      api.Chat
-	extra    []*api.Message    // sent and received at runtime, oldest first
-	extraIdx map[string]int    // id -> position in extra
-	paths    map[string]string // id -> fetched media file
+	extra    []*api.Message          // sent and received at runtime, oldest first
+	extraIdx map[string]int          // id -> position in extra
+	paths    map[string]string       // id -> fetched media file
+	edits    map[string]*api.Message // id -> generated message as changed since
+	gone     map[string]bool         // ids deleted for us
 	replying bool
 }
 
@@ -105,6 +107,8 @@ func New(cfg Config) *Backend {
 			},
 			extraIdx: map[string]int{},
 			paths:    map[string]string{},
+			edits:    map[string]*api.Message{},
+			gone:     map[string]bool{},
 		}
 	}
 	if cfg.Traffic > 0 {
@@ -422,6 +426,9 @@ func (c *chat) at(p int) api.Message {
 	var m api.Message
 	if p < c.spec.n {
 		m = c.spec.gen(p)
+		if e, ok := c.edits[m.ID]; ok {
+			m = *e
+		}
 	} else {
 		m = *c.extra[p-c.spec.n]
 	}
@@ -458,9 +465,103 @@ func (b *Backend) MessagesList(ctx context.Context, p api.MessagesListParams) (*
 	start := max(0, end-p.Limit)
 	res := &api.MessagesListResult{Messages: make([]api.Message, 0, end-start), HasMore: start > 0}
 	for i := end - 1; i >= start; i-- {
-		res.Messages = append(res.Messages, c.at(i))
+		if m := c.at(i); !c.gone[m.ID] {
+			res.Messages = append(res.Messages, m)
+		}
 	}
 	return res, nil
+}
+
+// change applies f to message id, then emits it and the chat if it was the
+// last message.
+func (b *Backend) change(jid, id string, f func(m *api.Message) error) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	c, err := b.chat(jid)
+	if err != nil {
+		return err
+	}
+	p, ok := c.pos(id)
+	if !ok || c.gone[id] {
+		return fmt.Errorf("message %s: %w", id, api.ErrNotFound)
+	}
+	m := c.at(p)
+	if err := f(&m); err != nil {
+		return err
+	}
+	if p < c.spec.n {
+		c.edits[id] = &m
+	} else {
+		*c.extra[p-c.spec.n] = m
+	}
+	b.emit(api.EMessageUpdate, api.MessageEvent{Message: m})
+	if c.row.LastMessage != nil && c.row.LastMessage.ID == id {
+		c.row.LastMessage = api.Stub(&m)
+		b.emit(api.EChatUpdate, api.ChatEvent{Chat: c.row})
+	}
+	return nil
+}
+
+func (b *Backend) MessagesReact(ctx context.Context, p api.ReactParams) error {
+	return b.change(p.Chat, p.ID, func(m *api.Message) error {
+		if m.Deleted {
+			return fmt.Errorf("message was deleted: %w", api.ErrUnsupported)
+		}
+		rs := []api.Reaction{}
+		for _, r := range m.Reactions {
+			if r.Mine {
+				r.Mine, r.Count = false, r.Count-1
+			}
+			if r.Emoji == p.Emoji {
+				r.Mine, r.Count = true, r.Count+1
+			}
+			if r.Count > 0 {
+				rs = append(rs, r)
+			}
+		}
+		if p.Emoji != "" && !slices.ContainsFunc(rs, func(r api.Reaction) bool { return r.Mine }) {
+			rs = append(rs, api.Reaction{Emoji: p.Emoji, Count: 1, Mine: true})
+		}
+		m.Reactions = rs
+		return nil
+	})
+}
+
+func (b *Backend) MessagesRevoke(ctx context.Context, p api.MessageRefParams) error {
+	return b.change(p.Chat, p.ID, func(m *api.Message) error {
+		if !m.FromMe {
+			return fmt.Errorf("only your own messages can be deleted for everyone: %w", api.ErrUnsupported)
+		}
+		*m = api.Message{ID: m.ID, Chat: m.Chat, Sender: m.Sender, SenderName: m.SenderName, FromMe: true,
+			Timestamp: m.Timestamp, Type: api.MsgRevoked, Status: m.Status, Deleted: true,
+			Reactions: []api.Reaction{}, Mentions: []api.Mention{}}
+		return nil
+	})
+}
+
+func (b *Backend) MessagesDeleteForMe(ctx context.Context, p api.MessageRefParams) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	c, err := b.chat(p.Chat)
+	if err != nil {
+		return err
+	}
+	if _, ok := c.pos(p.ID); !ok || c.gone[p.ID] {
+		return fmt.Errorf("message %s: %w", p.ID, api.ErrNotFound)
+	}
+	c.gone[p.ID] = true
+	b.emit(api.EMessageRemove, api.MessageRemoveEvent{Chat: p.Chat, ID: p.ID})
+	if c.row.LastMessage != nil && c.row.LastMessage.ID == p.ID {
+		c.row.LastMessage = nil
+		for i := c.count() - 1; i >= 0; i-- {
+			if m := c.at(i); !c.gone[m.ID] {
+				c.row.LastMessage = api.Stub(&m)
+				break
+			}
+		}
+		b.emit(api.EChatUpdate, api.ChatEvent{Chat: c.row})
+	}
+	return nil
 }
 
 func (b *Backend) MessagesSend(ctx context.Context, p api.SendParams) (*api.Message, error) {

@@ -17,18 +17,31 @@ T.Menu {
     component Entry: T.MenuItem {
         id: item
         property bool danger: false
+        property string iconName // Material Symbol before the text, if any
         visible: enabled
         height: enabled ? implicitHeight : 0
         implicitWidth: 220
         implicitHeight: 40
         leftPadding: 16
         rightPadding: 16
-        contentItem: Text {
-            text: item.text
-            verticalAlignment: Text.AlignVCenter
-            elide: Text.ElideRight
-            color: item.danger ? Theme.danger : Theme.text
-            font.pixelSize: 14
+        contentItem: Row {
+            spacing: 16
+            Icon {
+                anchors.verticalCenter: parent.verticalCenter
+                visible: item.iconName !== ""
+                name: item.iconName
+                size: 20
+                color: item.danger ? Theme.danger : Theme.icon
+            }
+            Text {
+                width: parent.width - (item.iconName !== "" ? 36 : 0)
+                height: parent.height
+                text: item.text
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+                color: item.danger ? Theme.danger : Theme.text
+                font.pixelSize: 14
+            }
         }
         background: Rectangle {
             radius: 8

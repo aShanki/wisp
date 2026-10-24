@@ -316,6 +316,13 @@ void ConversationController::onEvent(const QString &name, const QJsonObject &par
             m_early.append(msg);
         else if (!unloaded && m_model->upsert(msg))
             emit newMessage(msg["fromMe"_L1].toBool());
+    } else if (name == "message.remove"_L1) {
+        if (params["chat"_L1].toString() != m_jid)
+            return;
+        const QString id = params["id"_L1].toString();
+        if (m_reply.value(u"id"_s).toString() == id)
+            cancelReply();
+        m_model->remove(id);
     } else if (name == "chat.update"_L1) {
         applyChat(params["chat"_L1].toObject());
     } else if (name == "historySync.progress"_L1) {
@@ -494,6 +501,33 @@ void ConversationController::withMediaPath(const QString &id, std::function<void
             if (!path.isEmpty())
                 done(path);
         });
+}
+
+// A call on one message of this chat; the result arrives as events.
+void ConversationController::act(const QString &method, QJsonObject params, const QString &what)
+{
+    if (m_jid.isEmpty())
+        return;
+    params.insert(u"chat"_s, m_jid);
+    RpcClient::instance()->call(method, params, [this, what](const QJsonValue &, const QJsonObject &e) {
+        if (!e.isEmpty())
+            fail(e, what);
+    });
+}
+
+void ConversationController::react(const QString &id, const QString &emoji)
+{
+    act(u"messages.react"_s, {{u"id"_s, id}, {u"emoji"_s, emoji}}, u"Reaction not sent"_s);
+}
+
+void ConversationController::deleteForEveryone(const QString &id)
+{
+    act(u"messages.revoke"_s, {{u"id"_s, id}}, u"Not deleted"_s);
+}
+
+void ConversationController::deleteForMe(const QString &id)
+{
+    act(u"messages.deleteForMe"_s, {{u"id"_s, id}}, u"Not deleted"_s);
 }
 
 // Opens the media, downloading it first if needed.
