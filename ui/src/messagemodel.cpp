@@ -1,6 +1,7 @@
 #include "messagemodel.h"
 
 #include <QDateTime>
+#include <QUrl>
 #include <QTextBoundaryFinder>
 
 #include <limits>
@@ -97,8 +98,10 @@ QHash<int, QByteArray> MessageModel::roleNames() const
         {MediaFileNameRole, "mediaFileName"},
         {MediaSizeRole, "mediaSize"},
         {MediaLoadingRole, "mediaLoading"},
+        {MediaProgressRole, "mediaProgress"},
         {ThumbSourceRole, "thumbSource"},
         {MediaSourceRole, "mediaSource"},
+        {MediaUrlRole, "mediaUrl"},
         {DayLabelRole, "dayLabel"},
         {FirstOfDayRole, "firstOfDay"},
         {FirstInGroupRole, "firstInGroup"},
@@ -134,7 +137,8 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
     case ReplyToRole:
         if (!m.isReply)
             return QVariant::fromValue(nullptr);
-        return QVariantMap{{u"senderName"_s, m.replySender},
+        return QVariantMap{{u"id"_s, m.replyId},
+                           {u"senderName"_s, m.replySender},
                            {u"preview"_s, m.replyPreview},
                            {u"color"_s, m.replyColor}};
     case ReactionsRole: {
@@ -154,10 +158,12 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
     case MediaFileNameRole: return m.fileName;
     case MediaSizeRole: return m.size;
     case MediaLoadingRole: return m.mediaLoading;
+    case MediaProgressRole: return m.mediaProgress;
     case ThumbSourceRole:
         return m.hasThumb ? u"image://wisp/thumb/%1/%2"_s.arg(m_chat, m.id) : QString();
     case MediaSourceRole:
         return m.isImage ? u"image://wisp/media/%1/%2"_s.arg(m_chat, m.id) : QString();
+    case MediaUrlRole: return m.path.isEmpty() ? QUrl() : QUrl::fromLocalFile(m.path);
     case DayLabelRole: return firstOfDay(row) ? Format::day(m.timestamp) : QString();
     case FirstOfDayRole: return firstOfDay(row);
     case FirstInGroupRole: return firstInGroup(row);
@@ -203,6 +209,7 @@ MessageModel::Msg MessageModel::parse(const QJsonObject &o)
     const QJsonObject r = o["replyTo"_L1].toObject();
     if (!r.isEmpty()) {
         m.isReply = true;
+        m.replyId = r["id"_L1].toString();
         m.replySender = r["fromMe"_L1].toBool()
             ? u"You"_s : r["senderName"_L1].toString();
         m.replyPreview = r["preview"_L1].toString();
@@ -318,6 +325,7 @@ void MessageModel::replace(int row, Msg &&n)
 {
     Msg &m = m_rows[row];
     n.mediaLoading = m.mediaLoading;
+    n.mediaProgress = m.mediaProgress;
     if (n.path.isEmpty())
         n.path = m.path; // fetched by us; the event may predate it
     const bool sameText = n.text == m.text && n.mentions == m.mentions;
@@ -337,7 +345,7 @@ void MessageModel::replace(int row, Msg &&n)
     if (!sameText) roles << RichTextRole;
     if (n.mentions.isEmpty() != m.mentions.isEmpty()) roles << HasMentionsRole;
     if (n.emojiCount != m.emojiCount) roles << EmojiOnlyRole << EmojiCountRole;
-    if (n.isReply != m.isReply || n.replySender != m.replySender || n.replyPreview != m.replyPreview
+    if (n.isReply != m.isReply || n.replyId != m.replyId || n.replySender != m.replySender || n.replyPreview != m.replyPreview
             || n.replyColor != m.replyColor)
         roles << ReplyToRole;
     if (n.reactions != m.reactions) roles << ReactionsRole;
@@ -350,6 +358,7 @@ void MessageModel::replace(int row, Msg &&n)
     if (n.size != m.size) roles << MediaSizeRole;
     if (n.hasThumb != m.hasThumb) roles << ThumbSourceRole;
     if (n.isImage != m.isImage) roles << MediaSourceRole;
+    if (n.path != m.path) roles << MediaUrlRole;
     const bool regroup = n.timestamp != m.timestamp || n.type != m.type;
     m = std::move(n);
     if (roles.isEmpty())
@@ -379,7 +388,17 @@ void MessageModel::setMediaLoading(const QString &id, bool loading)
     if (row < 0 || m_rows[row].mediaLoading == loading)
         return;
     m_rows[row].mediaLoading = loading;
-    emit dataChanged(index(row), index(row), {MediaLoadingRole});
+    m_rows[row].mediaProgress = -1;
+    emit dataChanged(index(row), index(row), {MediaLoadingRole, MediaProgressRole});
+}
+
+void MessageModel::setMediaProgress(const QString &id, int percent)
+{
+    const int row = indexOf(id);
+    if (row < 0 || !m_rows[row].mediaLoading || m_rows[row].mediaProgress == percent)
+        return;
+    m_rows[row].mediaProgress = percent;
+    emit dataChanged(index(row), index(row), {MediaProgressRole});
 }
 
 void MessageModel::setMediaPath(const QString &id, const QString &path)
@@ -388,11 +407,17 @@ void MessageModel::setMediaPath(const QString &id, const QString &path)
     if (row < 0)
         return;
     Msg &m = m_rows[row];
+    QList<int> roles;
+    if (m.path != path)
+        roles << MediaUrlRole;
     m.path = path;
     if (m.mediaLoading) {
         m.mediaLoading = false;
-        emit dataChanged(index(row), index(row), {MediaLoadingRole});
+        m.mediaProgress = -1;
+        roles << MediaLoadingRole << MediaProgressRole;
     }
+    if (!roles.isEmpty())
+        emit dataChanged(index(row), index(row), roles);
 }
 
 QVariantMap MessageModel::quote(const QString &id) const

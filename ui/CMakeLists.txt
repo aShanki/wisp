@@ -10,7 +10,7 @@ if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network)
+find_package(Qt6 6.9 REQUIRED COMPONENTS Core Gui Qml Quick QuickControls2 Network Multimedia)
 qt_standard_project_setup(REQUIRES 6.9)
 
 # Qt translation units take 300-500 MB each; keep parallelism low.
@@ -54,7 +54,7 @@ qt_add_resources(wispui update_installer PREFIX / FILES ../scripts/install-updat
 
 target_include_directories(wispui PUBLIC src)
 target_link_libraries(wispui PUBLIC
-  Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network)
+  Qt6::Core Qt6::Gui Qt6::Qml Qt6::Quick Qt6::QuickControls2 Qt6::Network Qt6::Multimedia)
 target_compile_definitions(wispui PUBLIC WISP_VERSION="${PROJECT_VERSION}")
 
 qt_add_executable(wisp src/main.cpp)

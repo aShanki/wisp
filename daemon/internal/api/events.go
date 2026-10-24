@@ -15,6 +15,7 @@ const (
 	EUIOpenChat          = "ui.openChat"
 	EUIQuit              = "ui.quit"
 	ECallState           = "call.state"
+	EMediaProgress       = "media.progress"
 )
 
 type QREvent struct {
@@ -66,6 +67,12 @@ type HistorySyncEvent struct {
 	Chats    int  `json:"chats"`   // chats ingested so far
 	Messages int  `json:"messages"`
 	Done     bool `json:"done"`
+}
+
+type MediaProgressEvent struct {
+	Chat    string `json:"chat"`
+	ID      string `json:"id"`
+	Percent int    `json:"percent"` // 0-100 of the download
 }
 
 type OpenChatEvent struct {

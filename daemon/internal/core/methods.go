@@ -172,7 +172,17 @@ func (c *Core) MediaFetch(ctx context.Context, p api.MessageRefParams) (*api.Pat
 	if err != nil {
 		return nil, err
 	}
-	path, err := c.media.Fetch(ctx, ref)
+	last := -1
+	progress := func(done, total int64) {
+		if total <= 0 {
+			return
+		}
+		if pct := int(min(100, done*100/total)); pct != last {
+			last = pct
+			c.emitEv(api.EMediaProgress, api.MediaProgressEvent{Chat: p.Chat, ID: p.ID, Percent: pct})
+		}
+	}
+	path, err := c.media.Fetch(api.WithProgress(ctx, progress), ref)
 	if err != nil {
 		return nil, err
 	}

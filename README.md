@@ -10,13 +10,13 @@ may break WhatsApp's terms of service.
 
 ## Build (Linux)
 
-Requirements: Go 1.26, Qt 6.9+ (Quick, QuickControls2, Svg), CMake, Ninja, and
+Requirements: Go 1.26, Qt 6.9+ (Quick, QuickControls2, Svg, Multimedia), CMake, Ninja, and
 a desktop with a notification server, a StatusNotifierItem tray and PipeWire.
 `make install` also needs curl, jq and ffmpeg. On Ubuntu 26.04 / Debian:
 
     sudo apt install golang-go cmake ninja-build g++ \
-        qt6-base-dev qt6-declarative-dev qt6-svg-plugins \
-        qml6-module-qtquick-controls qml6-module-qtquick-dialogs \
+        qt6-base-dev qt6-declarative-dev qt6-svg-plugins qt6-multimedia-dev \
+        qml6-module-qtquick-controls qml6-module-qtquick-dialogs qml6-module-qtmultimedia \
         qml6-module-qtquick-layouts qml6-module-qtquick-templates \
         qml6-module-qtquick-window qml6-module-qtcore \
         qml6-module-qtqml-workerscript pipewire-pulse curl jq ffmpeg fonts-liberation

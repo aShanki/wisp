@@ -33,8 +33,10 @@ Item {
     required property string mediaFileName
     required property real mediaSize
     required property bool mediaLoading
+    required property int mediaProgress
     required property string thumbSource
     required property string mediaSource
+    required property url mediaUrl
     required property string dayLabel
     required property bool firstOfDay
     required property bool firstInGroup
@@ -42,7 +44,9 @@ Item {
     property bool isGroup: false
     property real spaceWidth: 4
     property real windowWidth: width
+    property bool flash: false // set while the view shows this message as a reply's original
     signal imageClicked(string id, string source, int w, int h)
+    signal quoteClicked(string id)
 
     readonly property bool isSystem: type === "system"
     readonly property bool isDeleted: deleted || type === "revoked"
@@ -163,6 +167,29 @@ Item {
         text: visible ? root.richText : ""
     }
 
+    // A reply's original, once jumped to, under a tint that fades out.
+    onFlashChanged: {
+        tint.opacity = 0
+        if (flash)
+            fade.restart()
+        else
+            fade.stop()
+    }
+    Rectangle {
+        id: tint
+        y: root.dayH + root.gap - 2
+        width: root.width
+        height: bubble.height + 4
+        color: Theme.highlight
+        opacity: 0
+        SequentialAnimation {
+            id: fade
+            NumberAnimation { target: tint; property: "opacity"; to: 0.6; duration: 150 }
+            PauseAnimation { duration: 700 }
+            NumberAnimation { target: tint; property: "opacity"; to: 0; duration: 600 }
+        }
+    }
+
     // WhatsApp's 1 px drop shadow, without effects.
     Rectangle {
         visible: !root.isSystem && !root.bare
@@ -272,6 +299,11 @@ Item {
             sourceComponent: QuoteBlock {
                 width: root.isVisual ? root.imageW : root.isAudio ? bubble.width - 6 : root.innerW + 10
                 quote: root.replyTo
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: root.quoteClicked(root.replyTo.id)
+                }
             }
         }
         Loader {
@@ -285,11 +317,16 @@ Item {
                 thumbSource: root.thumbSource
                 mediaSource: root.mediaSource
                 playable: root.type === "video" || root.type === "gif"
+                gif: root.type === "gif"
+                videoUrl: root.mediaUrl
+                Component.onCompleted: if (gif && videoUrl.toString() === "" && !loading) Conversation.fetchMedia(root.msgId)
                 duration: root.mediaDuration
                 loading: root.mediaLoading
+                progress: root.mediaProgress
                 maskColor: bubble.color
                 sticker: root.isSticker
-                onClicked: root.mediaSource !== "" && !image.failed
+                onClicked: image.playable ? Conversation.playVideo(root.msgId)
+                           : root.mediaSource !== "" && !image.failed
                            ? root.imageClicked(root.msgId, root.mediaSource, root.mediaWidth, root.mediaHeight)
                            : Conversation.openMedia(root.msgId)
             }
@@ -338,7 +375,12 @@ Item {
             visible: root.hasBody
             x: root.padL + (root.bigEmoji ? 15 : root.bodyIndent)
             y: root.bigEmoji ? root.emojiY + (root.emojiBox - implicitHeight) / 2
-                : bubble.bodyY + (root.isDeleted ? 3 : root.body2 ? 2 : 1)
+                : bubble.bodyY + (root.isDeleted ? 3 : root.body2 ? 2 : 1) - richDrop
+            // StyledText sets a fixed-height line's baseline at the font's
+            // ascent, RichText's QTextDocumentLayout at 4/5 of the line; lift
+            // RichText's to match. baselineOffset is the ascent in both.
+            readonly property real richDrop: textFormat === Text.RichText && lineHeightMode === Text.FixedHeight
+                ? Math.round(lineHeight * 4 / 5) - Math.round(baselineOffset) : 0
             width: root.bigEmoji ? root.emojiCount * root.emojiBox : Math.min(root.innerW - root.bodyIndent, implicitWidth)
             horizontalAlignment: root.bigEmoji ? Text.AlignHCenter : Text.AlignLeft
             text: !visible ? "" : root.bigEmoji ? root.bodyText

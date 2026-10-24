@@ -460,11 +460,15 @@ func (c *Client) Download(ctx context.Context, ref *api.MediaRef) ([]byte, error
 	if path == "" {
 		return nil, api.ErrMediaExpired
 	}
-	data, err := cli.DownloadMediaWithPath(ctx, path, ref.FileEncSHA256, ref.FileSHA256, ref.MediaKey, mediaType(ref.Type), "", false)
+	dctx, mismatch, cancel := withHashCheck(ctx)
+	defer cancel()
+	data, err := cli.DownloadMediaWithPath(dctx, path, ref.FileEncSHA256, ref.FileSHA256, ref.MediaKey, mediaType(ref.Type), "", false)
 	if errors.Is(err, whatsmeow.ErrInvalidMediaSHA256) && len(ref.FileSHA256) == 0 && len(data) > 0 {
 		err = nil // a favourite sticker comes without the plain hash; the MAC still matched
 	}
-	if expired(err) {
+	// A file that doesn't match its message (seen on forwarded videos) is
+	// treated like an expired one: the phone may still have the right copy.
+	if expired(err) || mismatch() {
 		return c.retryDownload(ctx, cli, ref)
 	}
 	if err != nil {
@@ -529,7 +533,12 @@ func (c *Client) retryDownload(ctx context.Context, cli *whatsmeow.Client, ref *
 	if path == "" {
 		return nil, fmt.Errorf("%w: not on the phone", api.ErrMediaExpired)
 	}
-	data, err := cli.DownloadMediaWithPath(ctx, path, ref.FileEncSHA256, ref.FileSHA256, ref.MediaKey, mediaType(ref.Type), "", false)
+	dctx, mismatch, cancel := withHashCheck(ctx)
+	defer cancel()
+	data, err := cli.DownloadMediaWithPath(dctx, path, ref.FileEncSHA256, ref.FileSHA256, ref.MediaKey, mediaType(ref.Type), "", false)
+	if mismatch() {
+		return nil, fmt.Errorf("%w: the phone's copy doesn't match the message", api.ErrMediaExpired)
+	}
 	if expired(err) {
 		return nil, fmt.Errorf("%w: %v", api.ErrMediaExpired, err)
 	}
