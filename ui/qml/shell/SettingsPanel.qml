@@ -219,6 +219,12 @@ Rectangle {
             onClicked: panel.page = "privacy"
         }
         Entry {
+            icon: "settings"
+            title: "Wisp " + Updater.version
+            subtitle: Updater.enabled ? "Automatic update checks are on" : "Automatic update checks are off"
+            onClicked: Updater.enabled = !Updater.enabled
+        }
+        Entry {
             icon: "logout"
             title: "Log out"
             danger: true

@@ -13,7 +13,12 @@ SHELL := /bin/bash
 ROOT := $(abspath .)
 BIN := $(ROOT)/bin
 UI_BUILD := $(ROOT)/build/ui
+UI_EXE := $(UI_BUILD)/wisp
+ifeq ($(shell uname -s),Darwin)
+UI_EXE := $(UI_BUILD)/wisp.app/Contents/MacOS/wisp
+endif
 GO ?= go
+VERSION := $(shell cat VERSION)
 BUILD_TYPE ?= RelWithDebInfo
 UI_TARGETS ?= all
 
@@ -39,12 +44,12 @@ build: daemon ui
 
 daemon:
 	@mkdir -p $(BIN)
-	cd daemon && $(GO) build -trimpath -ldflags="-s -w" -o $(BIN)/ ./cmd/...
+	cd daemon && $(GO) build -p 2 -trimpath -ldflags="-s -w -X wisp/daemon/internal/version.Version=$(VERSION)" -o $(BIN)/ ./cmd/...
 
 ui:
 	@cmake --log-level=WARNING -S ui -B $(UI_BUILD) $(UI_CMAKE_FLAGS)
-	cmake --build $(UI_BUILD) --target $(UI_TARGETS)
-	@mkdir -p $(BIN) && ln -sfn $(UI_BUILD)/wisp $(BIN)/wisp
+	cmake --build $(UI_BUILD) --parallel 2 --target $(UI_TARGETS)
+	@mkdir -p $(BIN) && ln -sfn $(UI_EXE) $(BIN)/wisp
 
 run: build
 	$(BIN)/wisp
@@ -53,10 +58,10 @@ run-mock: build
 	$(BIN)/wisp --mock --daemon $(BIN)/wispd
 
 vet:
-	cd daemon && $(GO) vet ./...
+	cd daemon && $(GO) vet -p 2 ./...
 
 test:
-	cd daemon && $(GO) test ./...
+	cd daemon && $(GO) test -p 1 -parallel 1 ./...
 
 lint:
 	shellcheck scripts/*.sh
@@ -67,14 +72,16 @@ smoke: build
 check:
 	$(MAKE) --no-print-directory vet
 	$(MAKE) --no-print-directory test
-	$(MAKE) --no-print-directory build UI_TARGETS="all wisp-uitest"
+	$(MAKE) --no-print-directory build UI_TARGETS="all wisp-uitest wisp-updatetest"
 	$(MAKE) --no-print-directory lint
 	scripts/smoke.sh
+	python3 scripts/test-update-install.py
+	$(UI_BUILD)/wisp-updatetest
 	WISP_BIN=$(BIN) $(UI_BUILD)/wisp-uitest
 
 chaos: daemon
 	@cmake --log-level=WARNING -S ui -B $(UI_BUILD) $(UI_CMAKE_FLAGS)
-	cmake --build $(UI_BUILD) --target wisp-chaos
+	cmake --build $(UI_BUILD) --parallel 2 --target wisp-chaos
 	WISP_BIN=$(BIN) $(UI_BUILD)/wisp-chaos
 
 perf: build

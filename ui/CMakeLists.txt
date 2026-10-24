@@ -1,9 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
-project(wisp VERSION 0.1.0 LANGUAGES CXX)
+file(STRINGS "${CMAKE_CURRENT_SOURCE_DIR}/../VERSION" WISP_VERSION LIMIT_COUNT 1)
+project(wisp VERSION ${WISP_VERSION} LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTOGEN_PARALLEL 2)
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
@@ -47,6 +49,8 @@ qt_add_qml_module(wispui
   SOURCES ${WISP_CPP}
 )
 qt_add_resources(wispui wisp_assets PREFIX / FILES ${WISP_ASSETS})
+set_source_files_properties(../scripts/install-update.sh PROPERTIES QT_RESOURCE_ALIAS install-update.sh)
+qt_add_resources(wispui update_installer PREFIX / FILES ../scripts/install-update.sh)
 
 target_include_directories(wispui PUBLIC src)
 target_link_libraries(wispui PUBLIC
@@ -71,6 +75,8 @@ install(TARGETS wisp RUNTIME DESTINATION bin BUNDLE DESTINATION .)
 # seeded chaos monkey (wisp-chaos, which also needs Qt Quick Test).
 find_package(Qt6 QUIET COMPONENTS Test QuickTest)
 if(TARGET Qt6::Test AND TARGET Qt6::QuickTest)
+  qt_add_executable(wisp-updatetest EXCLUDE_FROM_ALL tests/updatetest.cpp)
+  target_link_libraries(wisp-updatetest PRIVATE wispui Qt6::Test)
   set(WISP_TESTS uitest chaos)
   foreach(test ${WISP_TESTS})
     qt_add_executable(wisp-${test} EXCLUDE_FROM_ALL tests/${test}.cpp tests/harness.h)

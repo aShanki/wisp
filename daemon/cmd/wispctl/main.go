@@ -15,9 +15,11 @@ import (
 	"time"
 
 	"wisp/daemon/internal/rpc"
+	"wisp/daemon/internal/version"
 )
 
 func main() {
+	showVersion := flag.Bool("version", false, "print version and exit")
 	socket := flag.String("socket", "", "socket path")
 	mockMode := flag.Bool("mock", false, "use the mock daemon's default socket")
 	flag.Usage = func() {
@@ -25,6 +27,10 @@ func main() {
 		flag.PrintDefaults()
 	}
 	flag.Parse()
+	if *showVersion {
+		fmt.Println("wispctl " + version.Version)
+		return
+	}
 	args := flag.Args()
 	if len(args) == 0 {
 		flag.Usage()

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"flag"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -19,9 +20,11 @@ import (
 	"wisp/daemon/internal/mock"
 	"wisp/daemon/internal/rpc"
 	"wisp/daemon/internal/tray"
+	"wisp/daemon/internal/version"
 )
 
 func main() {
+	showVersion := flag.Bool("version", false, "print version and exit")
 	var (
 		mockMode = flag.Bool("mock", false, "serve generated data, no network")
 		socket   = flag.String("socket", "", "socket path (default $WISP_SOCKET or $XDG_RUNTIME_DIR/wisp.sock)")
@@ -33,6 +36,10 @@ func main() {
 		trayOn   = flag.Bool("tray", false, "mock: show the tray icon (always shown otherwise)")
 	)
 	flag.Parse()
+	if *showVersion {
+		fmt.Println("wispd " + version.Version)
+		return
+	}
 
 	var out io.Writer = os.Stderr
 	var logErr error

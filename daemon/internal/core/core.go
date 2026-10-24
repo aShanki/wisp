@@ -17,15 +17,14 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"wisp/daemon/internal/api"
+	"wisp/daemon/internal/version"
 )
-
-// Version is reported by daemon.hello.
-var Version = "0.1.0"
 
 // Config configures New.
 type Config struct {
@@ -203,7 +202,8 @@ func (c *Core) Hello(ctx context.Context, p api.HelloParams) (*api.HelloResult, 
 	c.clientsMu.Unlock()
 	return &api.HelloResult{
 		Protocol: api.ProtocolVersion,
-		Version:  Version,
+		Version:  version.Version,
+		PID:      os.Getpid(),
 		Auth:     c.wa.AuthState(),
 		Conn:     c.wa.ConnState(),
 		SelfJID:  c.wa.SelfJID(),

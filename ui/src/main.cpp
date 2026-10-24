@@ -58,6 +58,11 @@ int main(int argc, char *argv[])
     if (qEnvironmentVariableIsEmpty("QT_QUICK_CONTROLS_STYLE"))
         QQuickStyle::setStyle(u"Basic"_s);
 
+    if (!cli.isSet(mock) && !cli.isSet(shot) && !qEnvironmentVariableIsSet("WISP_UPDATES"))
+        qputenv("WISP_UPDATES", "1");
+    if (cli.isSet(mock))
+        qputenv("WISP_UPDATES", "0");
+
     RpcClient *rpc = RpcClient::instance();
     rpc->start({cli.isSet(mock), cli.value(socket), cli.value(daemon), QString::fromLocal8Bit(argv[0])});
 
