@@ -121,6 +121,8 @@ private slots:
     void imageViewer();
     void olderPages();
     void scrollMotion();
+    void mouseDrag();
+    void wheelDistance();
     void menuPlacement();
     void voiceNote();
     void composerReply();
@@ -711,8 +713,47 @@ void UiTest::imageViewer()
             view->setProperty("contentY", view->property("contentY").toReal() - 200);
         return image != nullptr;
     }());
+    // Its right-click menu copies the image without opening it.
+    QObject *messageMenu = m_window->findChild<QObject *>(u"messageMenu"_s);
+    QVERIFY(messageMenu);
+    QGuiApplication::clipboard()->clear();
+    QTest::mouseClick(m_window, Qt::RightButton, {}, image->mapToScene(QPointF(image->width() / 2, image->height() / 2)).toPoint());
+    QTRY_VERIFY(messageMenu->property("opened").toBool());
+    QQuickItem *copyEntry = nullptr;
+    QStringList shown;
+    for (int i = 0; i < messageMenu->property("count").toInt(); ++i) {
+        QQuickItem *entry = nullptr;
+        QMetaObject::invokeMethod(messageMenu, "itemAt", Q_RETURN_ARG(QQuickItem *, entry), Q_ARG(int, i));
+        if (!entry || !entry->isVisible())
+            continue;
+        shown << entry->property("text").toString();
+        if (shown.last() == "Copy image"_L1)
+            copyEntry = entry;
+    }
+    QVERIFY2(shown.contains(u"Reply"_s) && shown.contains(u"Open"_s) && copyEntry, qPrintable(shown.join(u", "_s)));
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, copyEntry->mapToScene(QPointF(copyEntry->width() / 2, copyEntry->height() / 2)).toPoint());
+    QTRY_VERIFY(!messageMenu->property("visible").toBool());
+    QTRY_VERIFY(!QGuiApplication::clipboard()->image().isNull());
+
     QTest::mouseClick(m_window, Qt::LeftButton, {}, image->mapToScene(QPointF(image->width() / 2, image->height() / 2)).toPoint());
     QTRY_VERIFY(!focused()->inherits("QQuickTextEdit")); // the viewer
+
+    // A right click on the image offers to copy it, at full size.
+    QObject *menu = m_window->findChild<QObject *>(u"imageMenu"_s);
+    QVERIFY(menu);
+    QGuiApplication::clipboard()->clear();
+    const QPoint centre(m_window->width() / 2, m_window->height() / 2);
+    QTest::mouseClick(m_window, Qt::RightButton, {}, centre);
+    QVERIFY2(menuPlaced(menu, atPoint(centre)).isEmpty(), "The image menu did not open at the click");
+    QQuickItem *copy = nullptr;
+    QMetaObject::invokeMethod(menu, "itemAt", Q_RETURN_ARG(QQuickItem *, copy), Q_ARG(int, 0));
+    QVERIFY(copy);
+    QCOMPARE(copy->property("text").toString(), u"Copy image"_s);
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, copy->mapToScene(QPointF(copy->width() / 2, copy->height() / 2)).toPoint());
+    QTRY_VERIFY(!menu->property("visible").toBool());
+    QTRY_VERIFY(!QGuiApplication::clipboard()->image().isNull());
+    QVERIFY(QGuiApplication::clipboard()->image().width() > image->width());
+    QVERIFY(!focused()->inherits("QQuickTextEdit")); // still the viewer
     key(Qt::Key_Escape);
     QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
     key(Qt::Key_Escape);
@@ -1285,6 +1326,72 @@ void UiTest::scrollMotion()
     m_conv->open(kBig);
     QTRY_VERIFY(m_conv->messages()->rowCount() >= 50 && !m_conv->loading());
     frame();
+}
+
+// A mouse drag on the messages doesn't scroll them; the wheel does.
+void UiTest::mouseDrag()
+{
+    QQuickItem *view = findView(m_window->contentItem(), m_conv->messages());
+    QVERIFY(view);
+    view->setProperty("contentY", view->property("contentY").toReal() - 400);
+    frame();
+    const qreal before = view->property("contentY").toReal();
+    const QPointF at = sceneRect(view).center();
+    QTest::mousePress(m_window, Qt::LeftButton, {}, at.toPoint());
+    for (int dy = 10; dy <= 200; dy += 10) {
+        QTest::mouseMove(m_window, (at + QPointF(0, dy)).toPoint());
+        QTest::qWait(5);
+    }
+    QTest::mouseRelease(m_window, Qt::LeftButton, {}, (at + QPointF(0, 200)).toPoint());
+    QTest::qWait(100);
+    QCOMPARE(view->property("contentY").toReal(), before);
+    QVERIFY(!view->property("moving").toBool());
+    QVERIFY(QMetaObject::invokeMethod(view->parentItem(), "scrollToBottom"));
+    frame();
+}
+
+// A mouse-wheel notch scrolls as far as a browser's, faster with the
+// system's acceleration; trackpad swipes still follow the fingers.
+void UiTest::wheelDistance()
+{
+    auto *view = findView(m_window->contentItem(), m_conv->messages());
+    QVERIFY(view);
+    const QPointF at = sceneRect(view).center();
+    QElapsedTimer clock;
+    clock.start();
+    const auto moved = [&](QPoint pixel, QPoint angle, Qt::ScrollPhase phase, int events) -> qreal {
+        QMetaObject::invokeMethod(view->parentItem(), "scrollToBottom");
+        frame();
+        QTest::qWait(100);
+        const qreal before = view->property("contentY").toReal();
+        for (int i = 0; i < events; ++i) {
+            const Qt::ScrollPhase p = phase == Qt::NoScrollPhase ? phase : i == 0 ? Qt::ScrollBegin : Qt::ScrollUpdate;
+            QWheelEvent e(at, m_window->mapToGlobal(at), pixel, angle, Qt::NoButton, {}, p, false);
+            e.setTimestamp(clock.msecsSinceReference() + clock.elapsed());
+            QGuiApplication::sendEvent(m_window, &e);
+            QTest::qWait(phase == Qt::NoScrollPhase ? 40 : 8);
+        }
+        if (phase != Qt::NoScrollPhase) {
+            QWheelEvent e(at, m_window->mapToGlobal(at), {}, {}, Qt::NoButton, {}, Qt::ScrollEnd, false);
+            QGuiApplication::sendEvent(m_window, &e);
+        }
+        QTest::qWait(300);
+        QTest::qWaitFor([&] { return !view->property("moving").toBool(); });
+        return before - view->property("contentY").toReal();
+    };
+    const qreal notch = moved({}, {0, 120}, Qt::NoScrollPhase, 3);
+    QVERIFY2(notch >= 3 * 99 && notch <= 3 * 101, qPrintable(QString::number(notch)));
+    // macOS: one line, then the same notch accelerated to four lines.
+    const qreal line = moved({0, 20}, {0, 120}, Qt::NoScrollPhase, 3);
+    QVERIFY2(line >= 3 * 39 && line <= 3 * 41, qPrintable(QString::number(line)));
+    const qreal fast = moved({0, 80}, {0, 120}, Qt::NoScrollPhase, 3);
+    QVERIFY2(fast >= 3 * 159 && fast <= 3 * 161, qPrintable(QString::number(fast)));
+    const qreal swipe = moved({0, 10}, {0, 40}, Qt::ScrollUpdate, 20);
+    QVERIFY2(swipe > 150, qPrintable(QString::number(swipe)));
+    QVERIFY(!view->property("pinned").toBool());
+    // Back down to the newest message, which pins the view again.
+    QVERIFY(moved({}, {0, -120 * 50}, Qt::NoScrollPhase, 1) < 0);
+    QTRY_VERIFY(view->property("pinned").toBool());
 }
 
 // Narrowing the mention list while it is still building rows, here to no

@@ -179,6 +179,7 @@ FocusScope {
             width: Math.min(contentWidth, parent.width - 116)
             height: 64
             orientation: ListView.Horizontal
+            acceptedButtons: Qt.NoButton
             spacing: 8
             clip: true
             model: Conversation.attachments
