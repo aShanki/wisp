@@ -1381,11 +1381,17 @@ void UiTest::wheelDistance()
     };
     const qreal notch = moved({}, {0, 120}, Qt::NoScrollPhase, 3);
     QVERIFY2(notch >= 3 * 99 && notch <= 3 * 101, qPrintable(QString::number(notch)));
-    // macOS: one line, then the same notch accelerated to four lines.
+#ifdef Q_OS_MACOS
+    // One line, then the same notch accelerated to four lines.
     const qreal line = moved({0, 20}, {0, 120}, Qt::NoScrollPhase, 3);
     QVERIFY2(line >= 3 * 39 && line <= 3 * 41, qPrintable(QString::number(line)));
     const qreal fast = moved({0, 80}, {0, 120}, Qt::NoScrollPhase, 3);
     QVERIFY2(fast >= 3 * 159 && fast <= 3 * 161, qPrintable(QString::number(fast)));
+#else
+    // A wheel's pixel delta (Wayland's 15 px) doesn't shorten its notch.
+    const qreal wayland = moved({0, 15}, {0, 120}, Qt::NoScrollPhase, 3);
+    QVERIFY2(wayland >= 3 * 99 && wayland <= 3 * 101, qPrintable(QString::number(wayland)));
+#endif
     const qreal swipe = moved({0, 10}, {0, 40}, Qt::ScrollUpdate, 20);
     QVERIFY2(swipe > 150, qPrintable(QString::number(swipe)));
     QVERIFY(!view->property("pinned").toBool());

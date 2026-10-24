@@ -1,7 +1,7 @@
 // Wheels and trackpads scroll a Flickable as a browser does; declare it inside
-// the Flickable. A mouse notch eases 40 px a line with the system's
-// acceleration (Qt on macOS keeps that only in pixelDelta, at 20 px a line),
-// else 100 px. A trackpad swipe, momentum included, follows its pixels.
+// the Flickable. A mouse notch eases 100 px, or on macOS 40 px a line with
+// the system's acceleration (Qt there keeps that only in pixelDelta, at 20 px
+// a line). A trackpad swipe, momentum included, follows its pixels.
 import QtQuick
 
 WheelHandler {
@@ -12,6 +12,7 @@ WheelHandler {
     signal settled()
 
     property real goal
+    readonly property bool linesInPixels: Qt.platform.os === "osx" || Qt.platform.os === "macos"
     readonly property NumberAnimation glide: NumberAnimation {
         target: root.flickable
         property: "contentY"
@@ -35,13 +36,15 @@ WheelHandler {
         const step = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * 100
         if (event.phase === Qt.ScrollEnd) {
             settled()
-        } else if (step === 0) {
-            return
         } else if (event.phase === Qt.NoScrollPhase) {
-            goal = clamped((glide.running ? goal : flickable.contentY) - (event.pixelDelta.y !== 0 ? 2 * step : step))
+            if (event.angleDelta.y === 0 && event.pixelDelta.y === 0)
+                return
+            const notch = linesInPixels && event.pixelDelta.y !== 0 ? 2 * event.pixelDelta.y
+                : event.angleDelta.y !== 0 ? event.angleDelta.y / 120 * 100 : event.pixelDelta.y
+            goal = clamped((glide.running ? goal : flickable.contentY) - notch)
             scrolled()
             glide.restart()
-        } else {
+        } else if (step !== 0) {
             glide.stop()
             scrolled()
             flickable.contentY = clamped(flickable.contentY - step)
