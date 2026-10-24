@@ -717,8 +717,9 @@ void UiTest::imageViewer()
     QObject *messageMenu = m_window->findChild<QObject *>(u"messageMenu"_s);
     QVERIFY(messageMenu);
     QGuiApplication::clipboard()->clear();
-    QTest::mouseClick(m_window, Qt::RightButton, {}, image->mapToScene(QPointF(image->width() / 2, image->height() / 2)).toPoint());
-    QTRY_VERIFY(messageMenu->property("opened").toBool());
+    const QPointF imageCentre = image->mapToScene(QPointF(image->width() / 2, image->height() / 2));
+    QTest::mouseClick(m_window, Qt::RightButton, {}, imageCentre.toPoint());
+    QCOMPARE(menuPlaced(messageMenu, atPoint(imageCentre.toPoint())), QString());
     QQuickItem *copyEntry = nullptr;
     QStringList shown;
     for (int i = 0; i < messageMenu->property("count").toInt(); ++i) {
