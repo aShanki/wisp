@@ -90,6 +90,9 @@ The assets are `wisp-X.Y.Z-macos-arm64.zip` and
 `wisp-X.Y.Z-linux-x86_64.tar.gz`. macOS bundles Qt and uses an ad-hoc signature;
 it is not notarized. The script copies optional icon and notification files
 from `build/whatsapp/` when present. It does not install the app locally.
+On macOS it searches `/opt/homebrew/lib` for split Qt frameworks; set
+`QT_LIBDIR` if your Qt libraries are elsewhere. Deployment errors stop the
+script before it signs or uploads an incomplete bundle.
 Use `RELEASE_BUILD_WRAPPER=/path/to/scripts/lim` to wrap the build on a machine
 with a memory budget. On this Mac, put
 `/Users/ashank/projects/wisp/build/tools/{cmake,ninja,go}/bin` on `PATH`, and set

@@ -30,6 +30,7 @@ esac
 out="$PWD/build/release/$version/$platform"
 mkdir -p "$out"
 asset="wisp-$version-$platform.$extension"
+rm -f "$out/$asset"
 # The caller can place its memory-capped build wrapper in RELEASE_BUILD_WRAPPER.
 if [[ -n ${RELEASE_BUILD_WRAPPER:-} ]]; then
     "$RELEASE_BUILD_WRAPPER" make build
@@ -45,7 +46,15 @@ if [[ $platform == macos-arm64 ]]; then
     for name in Wisp.icns notification.mp3 notification.ogg; do
         if [[ -f build/whatsapp/$name ]]; then cp "build/whatsapp/$name" "$app/Contents/Resources/"; fi
     done
-    "${MACDEPLOYQT:-macdeployqt}" "$app" "-qmldir=$PWD/ui/qml" -always-overwrite
+    deploy_args=("$app" "-qmldir=$PWD/ui/qml" -always-overwrite)
+    qt_libdir=${QT_LIBDIR:-/opt/homebrew/lib}
+    if [[ -d $qt_libdir ]]; then deploy_args+=("-libpath=$qt_libdir"); fi
+    "${MACDEPLOYQT:-macdeployqt}" "${deploy_args[@]}" 2>&1 | tee "$out/deployment.log"
+    # macdeployqt can return success even when it could not copy a dependency.
+    if grep -q '^ERROR:' "$out/deployment.log"; then
+        echo 'Qt deployment failed; inspect deployment.log before releasing.' >&2
+        exit 1
+    fi
     codesign --force --deep --sign - "$app"
     codesign --verify --deep "$app"
     ditto -c -k --sequesterRsrc --keepParent "$app" "$out/$asset"
