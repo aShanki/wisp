@@ -78,6 +78,16 @@ func requireChat(chat string) error {
 	return nil
 }
 
+func requireRef(chat, id string) error {
+	if err := requireChat(chat); err != nil {
+		return err
+	}
+	if id == "" {
+		return InvalidParams("id is required")
+	}
+	return nil
+}
+
 var handlers = map[string]handler{
 	MDaemonHello:    with(Backend.Hello),
 	MDaemonShutdown: noParamsOK(Backend.Shutdown),
@@ -168,6 +178,25 @@ var handlers = map[string]handler{
 			return nil, err
 		}
 		return &MessageResult{Message: *m}, nil
+	}),
+
+	MMessagesReact: withOK(func(b Backend, ctx context.Context, p ReactParams) error {
+		if err := requireRef(p.Chat, p.ID); err != nil {
+			return err
+		}
+		return b.MessagesReact(ctx, p)
+	}),
+	MMessagesRevoke: withOK(func(b Backend, ctx context.Context, p MessageRefParams) error {
+		if err := requireRef(p.Chat, p.ID); err != nil {
+			return err
+		}
+		return b.MessagesRevoke(ctx, p)
+	}),
+	MMessagesDeleteForMe: withOK(func(b Backend, ctx context.Context, p MessageRefParams) error {
+		if err := requireRef(p.Chat, p.ID); err != nil {
+			return err
+		}
+		return b.MessagesDeleteForMe(ctx, p)
 	}),
 
 	MStickersList: noParams(Backend.StickersList),

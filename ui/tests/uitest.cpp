@@ -131,6 +131,7 @@ private slots:
     void mentionPicker();
     void mentionRendering();
     void narrowWhileLoading();
+    void messageActions();
     void unlinkClosesChat();
 
 private:
@@ -786,6 +787,127 @@ void UiTest::hoverMenu()
     QTRY_VERIFY(menu->property("visible").toBool());
     QMetaObject::invokeMethod(menu, "close");
     QTRY_VERIFY(!menu->property("visible").toBool());
+    QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+}
+
+// React, Delete for everyone and Delete for me from a message's menu. Last
+// but one: it changes the Big Chat the other tests count on.
+void UiTest::messageActions()
+{
+    key(Qt::Key_Escape); // back to the newest messages
+    openBigChat();
+    QTRY_VERIFY(m_conv->jid() == kBig && !m_conv->loading() && m_conv->messages()->rowCount() > 0);
+    QQuickItem *view = findView(m_window->contentItem(), m_conv->messages());
+    QObject *menu = m_window->findChild<QObject *>(u"messageMenu"_s);
+    QObject *picker = m_window->findChild<QObject *>(u"reactionPicker"_s);
+    QObject *confirm = m_window->findChild<QObject *>(u"deleteConfirm"_s);
+    QVERIFY(view && menu && picker && confirm);
+    const MessageModel *model = m_conv->messages();
+    // A visible message, mine or theirs, that is on WhatsApp.
+    const auto visible = [&](bool mine) -> QQuickItem * {
+        for (int row = 0; row < 20; ++row) {
+            QQuickItem *item = itemAt(view, row);
+            if (item && !item->property("isSystem").toBool() && !item->property("isDeleted").toBool()
+                && item->property("fromMe").toBool() == mine
+                && (!mine || item->property("status").toString() != "pending"_L1)
+                && view->contains(item->mapToItem(view, QPointF(item->width() / 2, item->height() / 2))))
+                return item;
+        }
+        return nullptr;
+    };
+    // Right-clicks message, returning its menu's visible entries by text.
+    const auto open = [&](QQuickItem *message) {
+        QMap<QString, QQuickItem *> shown;
+        frame();
+        const QPointF at = sceneRect(bubbleOf(message)).center();
+        QTest::mouseClick(m_window, Qt::RightButton, {}, at.toPoint());
+        if (!menuPlaced(menu, atPoint(at)).isEmpty())
+            return shown;
+        for (int i = 0; i < menu->property("count").toInt(); ++i) {
+            QQuickItem *entry = nullptr;
+            QMetaObject::invokeMethod(menu, "itemAt", Q_RETURN_ARG(QQuickItem *, entry), Q_ARG(int, i));
+            if (entry && entry->isVisible())
+                shown.insert(entry->property("text").toString(), entry);
+        }
+        return shown;
+    };
+    const auto reactions = [&](const QString &id) {
+        return model->index(model->indexOf(id), 0).data(MessageModel::ReactionsRole).toList();
+    };
+    const auto mineReacted = [&](const QString &id, const QString &emoji) {
+        for (const QVariant &r : reactions(id))
+            if (r.toMap().value(u"mine"_s).toBool())
+                return r.toMap().value(u"emoji"_s).toString() == emoji;
+        return emoji.isEmpty();
+    };
+    const auto pick = [&](const QString &emoji) {
+        QQuickItem *content = picker->property("contentItem").value<QQuickItem *>();
+        QTRY_VERIFY(picker->property("opened").toBool());
+        for (QQuickItem *cell : content->childItems().value(0)->childItems()) // the Row's
+            if (cell->property("modelData").toString() == emoji) {
+                QTest::mouseClick(m_window, Qt::LeftButton, {}, sceneRect(cell).center().toPoint());
+                return;
+            }
+        QFAIL("no such reaction");
+    };
+
+    QQuickItem *mine = visible(true);
+    QVERIFY(mine);
+    const QString mineId = mine->property("msgId").toString();
+    QMap<QString, QQuickItem *> entries = open(mine);
+    shoot(u"message-menu"_s);
+    QStringList want = {u"Reply"_s, u"React"_s, u"Delete for me"_s, u"Delete for everyone"_s};
+    if (!mine->property("richText").toString().isEmpty())
+        want << u"Copy"_s;
+    for (const QString &w : want)
+        QVERIFY2(entries.contains(w), qPrintable(QStringList(entries.keys()).join(u", "_s)));
+
+    // React, then pick the same emoji again to take it back.
+    QVERIFY(QMetaObject::invokeMethod(entries[u"React"_s], "click"));
+    pick(u"👍"_s);
+    QTRY_VERIFY(mineReacted(mineId, u"👍"_s));
+    QTRY_VERIFY(!picker->property("visible").toBool());
+    QVERIFY(QMetaObject::invokeMethod(open(mine).value(u"React"_s), "click"));
+    QTRY_COMPARE(picker->property("mine").toString(), u"👍"_s);
+    pick(u"👍"_s);
+    QTRY_VERIFY(mineReacted(mineId, {}));
+    QTRY_VERIFY(!picker->property("visible").toBool());
+
+    // The picker has a card behind it, and + offers every emoji.
+    QVERIFY(QMetaObject::invokeMethod(open(mine).value(u"React"_s), "click"));
+    QTRY_VERIFY(picker->property("opened").toBool());
+    QVERIFY(picker->property("width").toReal() > 7 * 40);
+    shoot(u"reactions"_s);
+    QQuickItem *more = m_window->findChild<QQuickItem *>(u"moreReactions"_s);
+    QVERIFY(more);
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, sceneRect(more).center().toPoint());
+    QObject *panel = m_window->findChild<QObject *>(u"reactPanel"_s);
+    QVERIFY(panel);
+    QTRY_VERIFY(panel->property("opened").toBool());
+    shoot(u"reaction-panel"_s);
+    QVERIFY(!picker->property("visible").toBool());
+    QVERIFY(QMetaObject::invokeMethod(panel, "pick", Q_ARG(QVariant, u"🎉"_s)));
+    QTRY_VERIFY(mineReacted(mineId, u"🎉"_s));
+    QTRY_VERIFY(!panel->property("visible").toBool());
+
+    // Delete for everyone, after confirming.
+    QVERIFY(QMetaObject::invokeMethod(open(mine).value(u"Delete for everyone"_s), "click"));
+    QTRY_VERIFY(confirm->property("opened").toBool());
+    QVERIFY(QMetaObject::invokeMethod(confirm, "accept"));
+    QTRY_VERIFY(model->index(model->indexOf(mineId), 0).data(MessageModel::DeletedRole).toBool());
+
+    // Theirs can't be deleted for everyone; deleting it for me drops it.
+    QQuickItem *theirs = visible(false);
+    QVERIFY(theirs);
+    const QString theirId = theirs->property("msgId").toString();
+    entries = open(theirs);
+    QVERIFY(entries.contains(u"Delete for me"_s) && !entries.contains(u"Delete for everyone"_s));
+    QVERIFY(QMetaObject::invokeMethod(entries[u"Delete for me"_s], "click"));
+    QTRY_VERIFY(confirm->property("opened").toBool());
+    const int rows = model->rowCount();
+    QVERIFY(QMetaObject::invokeMethod(confirm, "accept"));
+    QTRY_COMPARE(model->indexOf(theirId), -1);
+    QCOMPARE(model->rowCount(), rows - 1);
     QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
 }
 

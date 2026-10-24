@@ -88,6 +88,8 @@ public:
     bool upsert(const QJsonObject &msg);
     // Update a loaded message; unknown ids are ignored.
     void update(const QJsonObject &msg);
+    // Drop a message (deleted for us); unknown ids are ignored.
+    void remove(const QString &id);
 
     int indexOf(const QString &id) const;
     const Msg *find(const QString &id) const;

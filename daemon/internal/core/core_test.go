@@ -971,3 +971,84 @@ func TestAppStateResyncOnce(t *testing.T) {
 		t.Errorf("settings.get shows %s", settingResynced)
 	}
 }
+
+func TestReactRevokeDeleteForMe(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	in := incoming(alice, "IN1", alice, "hello")
+	h.c.handle(api.EvMessage{Msg: in})
+	mine, _ := h.c.MessagesSend(ctx, api.SendParams{Chat: alice, Text: "hi"})
+	h.ev.waitFor(t, "sent", func(e event) bool {
+		ce, ok := e.params.(api.ChatEvent)
+		return ok && ce.Chat.LastMessage.Status == api.StatusSent
+	})
+	h.ev.reset()
+
+	if err := h.c.MessagesReact(ctx, api.ReactParams{Chat: alice, ID: in.ID, Emoji: "👍"}); err != nil {
+		t.Fatal(err)
+	}
+	ev := h.ev.waitFor(t, "react", func(e event) bool { return e.name == api.EMessageUpdate })
+	if rs := ev.params.(api.MessageEvent).Message.Reactions; len(rs) != 1 || !rs[0].Mine || rs[0].Emoji != "👍" {
+		t.Errorf("reactions = %+v", rs)
+	}
+	h.ev.reset()
+	if err := h.c.MessagesReact(ctx, api.ReactParams{Chat: alice, ID: in.ID}); err != nil {
+		t.Fatal(err)
+	}
+	ev = h.ev.waitFor(t, "unreact", func(e event) bool { return e.name == api.EMessageUpdate })
+	if rs := ev.params.(api.MessageEvent).Message.Reactions; len(rs) != 0 {
+		t.Errorf("reactions after removing = %+v", rs)
+	}
+
+	if err := h.c.MessagesRevoke(ctx, api.MessageRefParams{Chat: alice, ID: in.ID}); !errors.Is(err, api.ErrUnsupported) {
+		t.Errorf("revoke of their message: err = %v", err)
+	}
+	h.ev.reset()
+	if err := h.c.MessagesRevoke(ctx, api.MessageRefParams{Chat: alice, ID: mine.ID}); err != nil {
+		t.Fatal(err)
+	}
+	ev = h.ev.waitFor(t, "revoke", func(e event) bool { return e.name == api.EMessageUpdate })
+	if m := ev.params.(api.MessageEvent).Message; !m.Deleted || m.Text != "" {
+		t.Errorf("revoked = %+v", m)
+	}
+
+	h.ev.reset()
+	if err := h.c.MessagesDeleteForMe(ctx, api.MessageRefParams{Chat: alice, ID: mine.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.ev.names(); !reflect.DeepEqual(got, []string{api.EMessageRemove, api.EChatUpdate}) {
+		t.Fatalf("delete events = %v", got)
+	}
+	if ch := chatEvents(h.ev.all())[0]; ch.LastMessage == nil || ch.LastMessage.ID != in.ID {
+		t.Errorf("last message after delete = %+v", ch.LastMessage)
+	}
+	if _, err := h.st.GetMessage(ctx, alice, mine.ID); !errors.Is(err, api.ErrNotFound) {
+		t.Errorf("deleted message still stored: %v", err)
+	}
+
+	// Deleted on another device.
+	h.ev.reset()
+	h.c.handle(api.EvDeleteForMe{Chat: alice, ID: in.ID})
+	if got := h.ev.names(); !reflect.DeepEqual(got, []string{api.EMessageRemove, api.EChatUpdate}) {
+		t.Fatalf("remote delete events = %v", got)
+	}
+
+	want := []string{"react IN1 👍", "react IN1 ", "revoke " + mine.ID, "deleteForMe " + mine.ID}
+	if !reflect.DeepEqual(h.wa.acts, want) {
+		t.Errorf("wa calls = %q", h.wa.acts)
+	}
+}
+
+func TestRevokeTooOld(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	old := incoming(alice, "OLD", selfJID, "old")
+	old.FromMe, old.Timestamp = true, time.Now().Add(-revokeWindow-time.Hour).Unix()
+	h.c.handle(api.EvMessage{Msg: old})
+	if err := h.c.MessagesRevoke(ctx, api.MessageRefParams{Chat: alice, ID: "OLD"}); !errors.Is(err, api.ErrUnsupported) {
+		t.Errorf("err = %v", err)
+	}
+	if len(h.wa.acts) != 0 {
+		t.Errorf("wa calls = %q", h.wa.acts)
+	}
+}

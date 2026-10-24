@@ -11,6 +11,7 @@ import (
 	"go.mau.fi/whatsmeow/appstate"
 	"go.mau.fi/whatsmeow/proto/waE2E"
 	"go.mau.fi/whatsmeow/proto/waMmsRetry"
+	"go.mau.fi/whatsmeow/proto/waSyncAction"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -325,6 +326,91 @@ func (c *Client) SetMuted(ctx context.Context, chat string, until int64) error {
 	}
 	if err := cli.SendAppState(ctx, patch); err != nil {
 		return fmt.Errorf("wa: mute: %w", err)
+	}
+	return nil
+}
+
+// keySender is the participant of m's message key: none for our own
+// messages, and in groups addressed by LID the member's LID.
+func (c *Client) keySender(ctx context.Context, cli *whatsmeow.Client, chat types.JID, m *api.Message) (types.JID, error) {
+	if m.FromMe {
+		return types.EmptyJID, nil
+	}
+	if m.Sender == "" {
+		return chat, nil // 1:1: the other side
+	}
+	s, err := parseJID(m.Sender)
+	if err != nil {
+		return types.EmptyJID, err
+	}
+	s = s.ToNonAD()
+	if s.Server == types.DefaultUserServer && c.lidAddressed(ctx, cli, chat) {
+		if lid, _ := cli.Store.LIDs.GetLIDForPN(ctx, s); !lid.IsEmpty() {
+			s = lid.ToNonAD()
+		}
+	}
+	return s, nil
+}
+
+// React sets our reaction to m ("" removes it).
+func (c *Client) React(ctx context.Context, m *api.Message, emoji string) error {
+	cli, to, err := c.sendTarget(ctx, m.Chat)
+	if err != nil {
+		return err
+	}
+	sender, err := c.keySender(ctx, cli, to, m)
+	if err != nil {
+		return err
+	}
+	if _, err := cli.SendMessage(ctx, to, cli.BuildReaction(to, sender, m.ID, emoji)); err != nil {
+		return fmt.Errorf("wa: react: %w", err)
+	}
+	return nil
+}
+
+// Revoke deletes one of our messages for everyone.
+func (c *Client) Revoke(ctx context.Context, m *api.Message) error {
+	cli, to, err := c.sendTarget(ctx, m.Chat)
+	if err != nil {
+		return err
+	}
+	if _, err := cli.SendMessage(ctx, to, cli.BuildRevoke(to, types.EmptyJID, m.ID)); err != nil {
+		return fmt.Errorf("wa: revoke: %w", err)
+	}
+	return nil
+}
+
+// DeleteForMe syncs deleting m here to our other devices, as WhatsApp Web
+// does: a deleteMessageForMe mutation keyed by chat, id, fromMe, sender.
+func (c *Client) DeleteForMe(ctx context.Context, m *api.Message) error {
+	cli, to, err := c.settingsTarget(ctx, m.Chat)
+	if err != nil {
+		return err
+	}
+	fromMe, sender := "1", "0"
+	if !m.FromMe {
+		fromMe = "0"
+		if to.Server == types.GroupServer {
+			s, err := c.keySender(ctx, cli, to, m)
+			if err != nil {
+				return err
+			}
+			sender = s.String()
+		}
+	}
+	patch := appstate.PatchInfo{
+		Type: appstate.WAPatchRegularHigh,
+		Mutations: []appstate.MutationInfo{{
+			Index:   []string{appstate.IndexDeleteMessageForMe, to.String(), m.ID, fromMe, sender},
+			Version: 3,
+			Value: &waSyncAction.SyncActionValue{DeleteMessageForMeAction: &waSyncAction.DeleteMessageForMeAction{
+				DeleteMedia:      new(false),
+				MessageTimestamp: new(m.Timestamp),
+			}},
+		}},
+	}
+	if err := cli.SendAppState(ctx, patch); err != nil {
+		return fmt.Errorf("wa: delete for me: %w", err)
 	}
 	return nil
 }

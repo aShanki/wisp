@@ -703,6 +703,23 @@ WHERE chat = ? AND id = ? RETURNING seq`, chat, id).Scan(&seq)
 	return out, err
 }
 
+// DeleteMessage removes a message; its media row goes with it (cascade).
+func (s *Store) DeleteMessage(ctx context.Context, chat, id string) error {
+	return s.tx(ctx, func(tx *sql.Tx) error {
+		res, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE chat = ? AND id = ?`, chat, id)
+		if err != nil {
+			return fmt.Errorf("store: delete message: %w", err)
+		}
+		if n, _ := res.RowsAffected(); n == 0 {
+			return notFound("message %s/%s", chat, id)
+		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM reactions WHERE chat = ? AND msg_id = ?`, chat, id); err != nil {
+			return fmt.Errorf("store: delete reactions: %w", err)
+		}
+		return refreshLast(ctx, tx, chat)
+	})
+}
+
 type reactionStmts struct {
 	upsert, del *sql.Stmt
 }

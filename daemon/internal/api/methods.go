@@ -21,6 +21,9 @@ const (
 	MMessagesSend        = "messages.send"
 	MMessagesSendMedia   = "messages.sendMedia"
 	MMessagesSendSticker = "messages.sendSticker"
+	MMessagesReact       = "messages.react"
+	MMessagesRevoke      = "messages.revoke"
+	MMessagesDeleteForMe = "messages.deleteForMe"
 
 	MStickersList  = "stickers.list"
 	MStickersFetch = "stickers.fetch"
@@ -125,6 +128,12 @@ type MessagesListResult struct {
 type MessageRefParams struct {
 	Chat string `json:"chat"`
 	ID   string `json:"id"`
+}
+
+type ReactParams struct {
+	Chat  string `json:"chat"`
+	ID    string `json:"id"`
+	Emoji string `json:"emoji"` // "" removes our reaction
 }
 
 type SendParams struct {

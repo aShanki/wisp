@@ -180,6 +180,8 @@ func (c *Client) onEvent(cli *whatsmeow.Client, raw any) {
 	case *events.Pin:
 		at := pinTime(v.Action.GetPinned(), v.Timestamp)
 		c.emitMeta(cli, v.JID, func(p *api.ChatPatch) { p.Pinned = &at })
+	case *events.DeleteForMe:
+		c.emit(api.EvDeleteForMe{Chat: c.converterFor(cli).canon(v.ChatJID).String(), ID: v.MessageID})
 	case *events.Archive:
 		archived := v.Action.GetArchived()
 		c.emitMeta(cli, v.JID, func(p *api.ChatPatch) { p.Archived = &archived })

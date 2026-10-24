@@ -195,3 +195,94 @@ func (c *Core) setStatus(ctx context.Context, chat, id, status string) {
 	}
 	c.emitUpdates(ctx, chat, msgs...)
 }
+
+// revokeWindow is how long after sending WhatsApp lets us delete a message
+// for everyone.
+const revokeWindow = 60 * time.Hour
+
+// target loads a message for react/revoke/delete; deleted and system
+// messages can't be acted on.
+func (c *Core) target(ctx context.Context, p api.MessageRefParams) (*api.Message, error) {
+	if err := c.requireLogin(); err != nil {
+		return nil, err
+	}
+	m, err := c.store.GetMessage(ctx, p.Chat, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	if m.Type == api.MsgSystem {
+		return nil, fmt.Errorf("%w: system message", api.ErrUnsupported)
+	}
+	return m, nil
+}
+
+func (c *Core) MessagesReact(ctx context.Context, p api.ReactParams) error {
+	m, err := c.target(ctx, api.MessageRefParams{Chat: p.Chat, ID: p.ID})
+	if err != nil {
+		return err
+	}
+	if m.Deleted {
+		return fmt.Errorf("%w: message was deleted", api.ErrUnsupported)
+	}
+	if err := c.wa.React(ctx, m, p.Emoji); err != nil {
+		return err
+	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	u, err := c.store.ApplyReaction(ctx, api.EvReaction{Chat: p.Chat, ID: p.ID, Sender: c.wa.SelfJID(),
+		FromMe: true, Emoji: p.Emoji, Ts: time.Now().Unix()})
+	if err != nil {
+		return err
+	}
+	c.emitUpdates(ctx, p.Chat, u)
+	return nil
+}
+
+func (c *Core) MessagesRevoke(ctx context.Context, p api.MessageRefParams) error {
+	m, err := c.target(ctx, p)
+	if err != nil {
+		return err
+	}
+	switch {
+	case !m.FromMe:
+		return fmt.Errorf("%w: only your own messages can be deleted for everyone", api.ErrUnsupported)
+	case m.Deleted:
+		return nil
+	case time.Since(time.Unix(m.Timestamp, 0)) > revokeWindow:
+		return fmt.Errorf("%w: too old to delete for everyone", api.ErrUnsupported)
+	}
+	if err := c.wa.Revoke(ctx, m); err != nil {
+		return err
+	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	u, err := c.store.ApplyRevoke(ctx, p.Chat, p.ID)
+	if err != nil {
+		return err
+	}
+	c.emitUpdates(ctx, p.Chat, u)
+	return nil
+}
+
+func (c *Core) MessagesDeleteForMe(ctx context.Context, p api.MessageRefParams) error {
+	m, err := c.target(ctx, p)
+	if err != nil {
+		return err
+	}
+	if err := c.wa.DeleteForMe(ctx, m); err != nil {
+		return err
+	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	return c.removeMessage(ctx, p.Chat, p.ID)
+}
+
+// removeMessage deletes a message from the store and tells the UI.
+func (c *Core) removeMessage(ctx context.Context, chat, id string) error {
+	if err := c.store.DeleteMessage(ctx, chat, id); err != nil {
+		return err
+	}
+	c.emitEv(api.EMessageRemove, api.MessageRemoveEvent{Chat: chat, ID: id})
+	c.emitChat(ctx, chat)
+	return nil
+}

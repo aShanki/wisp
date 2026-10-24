@@ -303,6 +303,17 @@ void MessageModel::update(const QJsonObject &o)
         replace(row, parse(o));
 }
 
+void MessageModel::remove(const QString &id)
+{
+    const int row = indexOf(id);
+    if (row < 0)
+        return;
+    beginRemoveRows({}, row, row);
+    m_rows.removeAt(row);
+    endRemoveRows();
+    derivedChanged(row);
+}
+
 void MessageModel::replace(int row, Msg &&n)
 {
     Msg &m = m_rows[row];
