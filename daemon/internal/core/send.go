@@ -1,8 +1,11 @@
 package core
 
 import (
+	"cmp"
 	"context"
 	"errors"
+	"fmt"
+	"os"
 	"slices"
 	"time"
 
@@ -30,8 +33,7 @@ func (c *Core) MessagesSend(ctx context.Context, p api.SendParams) (*api.Message
 	})
 }
 
-// MessagesSendMedia caches a copy of the file so the pending message already
-// shows it, then uploads and sends in the background.
+// MessagesSendMedia sends a local file as a photo or a document.
 func (c *Core) MessagesSendMedia(ctx context.Context, p api.SendMediaParams) (*api.Message, error) {
 	if err := c.requireLogin(); err != nil {
 		return nil, err
@@ -40,8 +42,39 @@ func (c *Core) MessagesSendMedia(ctx context.Context, p api.SendMediaParams) (*a
 	if err != nil {
 		return nil, err
 	}
-	m := c.newOutgoing(p.Chat)
-	m.Type, m.Text, m.Thumb = om.Type, p.Caption, om.Thumb
+	return c.sendPrepared(ctx, p.Chat, om, p.Caption, p.ReplyTo)
+}
+
+// MessagesSendSticker sends a sticker from stickers.list. It is uploaded
+// afresh: the original upload may have left WhatsApp's servers.
+func (c *Core) MessagesSendSticker(ctx context.Context, p api.SendStickerParams) (*api.Message, error) {
+	if err := c.requireLogin(); err != nil {
+		return nil, err
+	}
+	path, st, err := c.stickerFile(ctx, p.Sticker)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("core: read sticker: %w", err)
+	}
+	om := &api.OutgoingMedia{Type: api.MsgSticker, Mime: "image/webp", FileName: "sticker.webp", Data: data,
+		Width: cmp.Or(st.Width, 512), Height: cmp.Or(st.Height, 512), Animated: animatedWebP(data)}
+	return c.sendPrepared(ctx, p.Chat, om, "", p.ReplyTo)
+}
+
+// animatedWebP reports the animation flag of an extended (VP8X) WebP.
+func animatedWebP(b []byte) bool {
+	return len(b) > 20 && string(b[0:4]) == "RIFF" && string(b[8:12]) == "WEBP" &&
+		string(b[12:16]) == "VP8X" && b[20]&0x02 != 0
+}
+
+// sendPrepared caches a copy of the file so the pending message already
+// shows it, then uploads and sends in the background.
+func (c *Core) sendPrepared(ctx context.Context, chat string, om *api.OutgoingMedia, caption, replyTo string) (*api.Message, error) {
+	m := c.newOutgoing(chat)
+	m.Type, m.Text, m.Thumb = om.Type, caption, om.Thumb
 	m.MediaRef = &api.MediaRef{Chat: m.Chat, ID: m.ID, Type: om.Type, Mime: om.Mime,
 		FileName: om.FileName, FileLength: uint64(len(om.Data))}
 	path, err := c.media.Put(ctx, m.MediaRef, om.Data)
@@ -50,7 +83,7 @@ func (c *Core) MessagesSendMedia(ctx context.Context, p api.SendMediaParams) (*a
 	}
 	m.Media = &api.MediaInfo{Mime: om.Mime, Size: int64(len(om.Data)), Width: om.Width, Height: om.Height,
 		FileName: om.FileName, HasThumb: len(om.Thumb) > 0, Path: path}
-	reply := c.attachReply(ctx, m, p.ReplyTo)
+	reply := c.attachReply(ctx, m, replyTo)
 	return c.sendAsync(ctx, m, func(ctx context.Context) (*api.MediaRef, error) {
 		return c.wa.SendMedia(ctx, m.Chat, m.ID, om, m.Text, reply)
 	})

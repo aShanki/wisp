@@ -125,6 +125,7 @@ private slots:
     void voiceNote();
     void composerReply();
     void emojiSuggest();
+    void emojiPanel();
     void mentionPicker();
     void mentionRendering();
     void narrowWhileLoading();
@@ -1418,6 +1419,72 @@ void UiTest::emojiSuggest()
         model.query(i % 2 ? u"sm"_s : u"e"_s);
     const qint64 ns = clock.nsecsElapsed() / 100;
     QVERIFY2(ns < 250000, qPrintable(QString::number(ns) + " ns per query"_L1));
+}
+
+// The smiley button opens the emoji panel with its search focused; Enter
+// inserts the best match into the composer and keeps the panel open; Esc
+// closes it, back to the composer, and the emoji is first in Recent. The
+// sticker tab sends stickers.
+void UiTest::emojiPanel()
+{
+    QCOMPARE(m_conv->jid(), kBig);
+    QQuickItem *root = m_window->contentItem();
+    QQuickItem *button = named(root, u"emojiButton"_s);
+    QVERIFY(button);
+    const auto click = [this](QQuickItem *item) {
+        QTest::mouseClick(m_window, Qt::LeftButton, {}, item->mapToScene(QPointF(item->width() / 2, item->height() / 2)).toPoint());
+    };
+    click(button);
+    QTRY_VERIFY(focused() && focused()->objectName() == "emojiSearch"_L1);
+    QQuickItem *search = focused();
+    if (const QString dir = qEnvironmentVariable("WISP_SHOTS"); !dir.isEmpty())
+        QVERIFY(m_window->grabWindow().save(dir + "/emoji-panel.png"_L1));
+
+    type(u"skull"_s);
+    key(Qt::Key_Return);
+    QQuickItem *input = named(root, u"composerInput"_s);
+    QCOMPARE(input->property("text").toString(), u"💀"_s);
+    QVERIFY(search->isVisible());
+    key(Qt::Key_Escape);
+    QTRY_VERIFY(!search->isVisible());
+    QCOMPARE(m_conv->jid(), kBig);
+    QTRY_VERIFY(focused() == input);
+
+    click(button);
+    QTRY_VERIFY(focused() == search);
+    QCOMPARE(search->property("text").toString(), QString());
+    if (const QString dir = qEnvironmentVariable("WISP_SHOTS"); !dir.isEmpty())
+        QVERIFY(m_window->grabWindow().save(dir + "/emoji-panel-recent.png"_L1));
+
+    // The sticker tab lists recent stickers, and favourites behind the star;
+    // a click sends one, and the panel reopens on the tab last used.
+    click(named(root, u"stickerTab"_s));
+    QQuickItem *grid = named(root, u"stickerGrid"_s);
+    QVERIFY(grid);
+    QTRY_COMPARE(grid->property("count").toInt(), 6);
+    click(named(root, u"favoriteStickers"_s));
+    QTRY_COMPARE(grid->property("count").toInt(), 2);
+    QTRY_VERIFY(itemAt(grid, 0));
+    QQuickItem *image = itemAt(grid, 0)->childItems().value(0);
+    QVERIFY(image && image->inherits("QQuickImage"));
+    QTRY_COMPARE(image->property("status").toInt(), 1); // Image.Ready
+    if (const QString dir = qEnvironmentVariable("WISP_SHOTS"); !dir.isEmpty())
+        QVERIFY(m_window->grabWindow().save(dir + "/sticker-panel.png"_L1));
+    click(itemAt(grid, 0));
+    QTRY_VERIFY(!event(u"message.new"_s, [&](const QJsonObject &m) {
+        return m["fromMe"_L1].toBool() && m["type"_L1] == "sticker"_L1;
+    }).isEmpty());
+    QVERIFY(grid->isVisible());
+    key(Qt::Key_Escape);
+    QTRY_VERIFY(!grid->isVisible());
+    click(button);
+    QTRY_VERIFY(grid->isVisible());
+    click(named(root, u"emojiTab"_s));
+    QTRY_VERIFY(focused() == search);
+    click(button);
+    QTRY_VERIFY(!search->isVisible());
+    key(Qt::Key_A, Qt::ControlModifier);
+    key(Qt::Key_Backspace);
 }
 
 // In a group, "@" opens the mention picker: letters narrow it, Up and Down

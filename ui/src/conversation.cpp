@@ -419,6 +419,14 @@ void ConversationController::sendAttachments()
                     file.temporary ? file.path : QString());
 }
 
+void ConversationController::sendSticker(const QString &id)
+{
+    if (m_jid.isEmpty() || m_readOnly || id.isEmpty())
+        return;
+    stopTyping();
+    sendMessage(u"messages.sendSticker"_s, {{u"sticker"_s, id}});
+}
+
 void ConversationController::startReply(const QString &id)
 {
     const QVariantMap q = m_model->quote(id);

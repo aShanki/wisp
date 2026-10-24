@@ -1,6 +1,7 @@
 package wa
 
 import (
+	"cmp"
 	"context"
 	"time"
 
@@ -200,6 +201,9 @@ func (c *Client) onEvent(cli *whatsmeow.Client, raw any) {
 				c.log.Debug("store lid chat mapping", "err", err)
 			}
 		}
+		if f, ok := favoriteSticker(v); ok {
+			c.emit(f)
+		}
 	case *events.AppStateSyncComplete:
 		if v.Name == appstate.WAPatchCriticalUnblockLow {
 			go c.emitAllContacts(cli)
@@ -280,6 +284,27 @@ func muteUntil(endMS int64) int64 {
 		return -1
 	}
 	return endMS / 1000
+}
+
+// favoriteSticker reads a sticker the phone (un)favourited. Lottie stickers
+// are left out: the UI can't draw them.
+func favoriteSticker(v *events.AppState) (api.EvFavoriteSticker, bool) {
+	if len(v.Index) < 1 || v.Index[0] != appstate.IndexFavoriteSticker || v.SyncActionValue == nil {
+		return api.EvFavoriteSticker{}, false
+	}
+	a := v.GetStickerAction()
+	if a == nil || a.GetIsLottie() || len(a.GetFileEncSHA256()) != 32 || len(a.GetMediaKey()) == 0 {
+		return api.EvFavoriteSticker{}, false
+	}
+	return api.EvFavoriteSticker{
+		Favorite: a.GetIsFavorite(),
+		TS:       v.GetTimestamp() / 1000,
+		Width:    int(a.GetWidth()),
+		Height:   int(a.GetHeight()),
+		Ref: api.MediaRef{Type: api.MsgSticker, Mime: cmp.Or(a.GetMimetype(), "image/webp"),
+			DirectPath: a.GetDirectPath(), URL: a.GetURL(), MediaKey: a.GetMediaKey(),
+			FileEncSHA256: a.GetFileEncSHA256(), FileLength: a.GetFileLength()},
+	}, true
 }
 
 func lidChatMapping(v *events.AppState) (store.LIDMapping, bool) {

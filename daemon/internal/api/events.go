@@ -206,6 +206,16 @@ type EvMediaPath struct {
 	DirectPath string
 }
 
+// EvFavoriteSticker: the phone (un)favourited a sticker. Ref has no Chat,
+// ID or FileSHA256; the ID is hex(Ref.FileEncSHA256).
+type EvFavoriteSticker struct {
+	Favorite bool
+	TS       int64
+	Width    int
+	Height   int
+	Ref      MediaRef
+}
+
 // EvCallOffer: an incoming call is ringing.
 type EvCallOffer struct {
 	ID    string
@@ -225,21 +235,22 @@ type EvCallState struct {
 	PeerMuted bool
 }
 
-func (EvQR) isWAEvent()            {}
-func (EvPaired) isWAEvent()        {}
-func (EvLoggedOut) isWAEvent()     {}
-func (EvConnState) isWAEvent()     {}
-func (EvMessage) isWAEvent()       {}
-func (EvHistory) isWAEvent()       {}
-func (EvReceipt) isWAEvent()       {}
-func (EvReaction) isWAEvent()      {}
-func (EvEdit) isWAEvent()          {}
-func (EvRevoke) isWAEvent()        {}
-func (EvChatMeta) isWAEvent()      {}
-func (EvContacts) isWAEvent()      {}
-func (EvPresence) isWAEvent()      {}
-func (EvTyping) isWAEvent()        {}
-func (EvAvatarChanged) isWAEvent() {}
-func (EvMediaPath) isWAEvent()     {}
-func (EvCallOffer) isWAEvent()     {}
-func (EvCallState) isWAEvent()     {}
+func (EvQR) isWAEvent()              {}
+func (EvPaired) isWAEvent()          {}
+func (EvLoggedOut) isWAEvent()       {}
+func (EvConnState) isWAEvent()       {}
+func (EvMessage) isWAEvent()         {}
+func (EvHistory) isWAEvent()         {}
+func (EvReceipt) isWAEvent()         {}
+func (EvReaction) isWAEvent()        {}
+func (EvEdit) isWAEvent()            {}
+func (EvRevoke) isWAEvent()          {}
+func (EvChatMeta) isWAEvent()        {}
+func (EvContacts) isWAEvent()        {}
+func (EvPresence) isWAEvent()        {}
+func (EvTyping) isWAEvent()          {}
+func (EvAvatarChanged) isWAEvent()   {}
+func (EvMediaPath) isWAEvent()       {}
+func (EvFavoriteSticker) isWAEvent() {}
+func (EvCallOffer) isWAEvent()       {}
+func (EvCallState) isWAEvent()       {}

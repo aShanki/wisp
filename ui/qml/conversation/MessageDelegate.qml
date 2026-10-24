@@ -10,6 +10,7 @@ Item {
 
     required property string msgId
     required property string senderName
+    required property string senderJid
     required property int senderColor
     required property bool fromMe
     required property string timeText
@@ -61,6 +62,8 @@ Item {
     readonly property real emojiY: bareEmoji ? (showSender ? 40 : 12) : bubble.bodyY + 6
     readonly property bool showSender: isGroup && !fromMe && firstInGroup && !isSystem
     readonly property bool tail: firstInGroup && !bare
+    // Group chats keep a column left of incoming bubbles for the sender's avatar.
+    readonly property int avatarCol: isGroup && !fromMe && !isSystem ? 38 : 0
     readonly property string kindLabel: type === "location" ? "Location" : type === "contact" ? "Contact"
         : type === "poll" ? "Poll" : type === "unsupported" ? "Unsupported message" : ""
     readonly property string bodyText: isDeleted ? (fromMe ? "You deleted this message" : "This message was deleted")
@@ -80,7 +83,7 @@ Item {
         * [800, 856, 912, 968, 1024, 1088, 1152, 1216, Infinity].findIndex(w => windowWidth <= w))
     readonly property real sideStart: isGroup ? groupSide : windowWidth <= 968 ? 25 : 63
     readonly property real sideEnd: isGroup ? groupSide : windowWidth <= 968 ? 19 : 63
-    readonly property real maxBubble: (width - sideStart - sideEnd)
+    readonly property real maxBubble: (width - sideStart - sideEnd - avatarCol)
         * (windowWidth <= 900 ? 0.95 : windowWidth <= 1024 ? 0.85 : windowWidth <= 1300 ? 0.75 : 0.65)
     readonly property int padL: 9
     readonly property int padR: 7
@@ -189,7 +192,7 @@ Item {
             : root.isVisual || root.isFile && !root.isAudio ? (root.showSender ? root.padT + senderH + 5 : 3)
             : root.padT + senderH
         readonly property real bodyY: mediaY + (root.isVisual ? root.imageH + 7 : root.isFile ? file.height + 7 : 0)
-        x: root.fromMe ? root.width - root.sideEnd - width : root.sideStart
+        x: root.fromMe ? root.width - root.sideEnd - width : root.sideStart + root.avatarCol
         y: root.dayH + root.gap
         // Web's emoji block: 6 px above the images, 15 and 17 px beside them,
         // the image's line descent and 14 px below; a 19 px line holds the time.
@@ -401,6 +404,19 @@ Item {
                 color: root.status === "read" || root.status === "played" ? Theme.read
                     : root.status === "error" ? Theme.danger : meta.tint
             }
+        }
+    }
+
+    Loader {
+        active: root.avatarCol > 0 && root.firstInGroup
+        x: root.sideStart
+        y: bubble.y
+        sourceComponent: Avatar {
+            size: 28
+            name: root.senderName
+            initialColor: Theme.senderColor(root.senderColor)
+            source: root.senderJid !== "" ? "image://wisp/avatar/" + root.senderJid : ""
+            maskColor: "transparent"
         }
     }
 

@@ -156,6 +156,28 @@ var handlers = map[string]handler{
 		return &MessageResult{Message: *m}, nil
 	}),
 
+	MMessagesSendSticker: with(func(b Backend, ctx context.Context, p SendStickerParams) (*MessageResult, error) {
+		if err := requireChat(p.Chat); err != nil {
+			return nil, err
+		}
+		if p.Sticker == "" {
+			return nil, InvalidParams("sticker is required")
+		}
+		m, err := b.MessagesSendSticker(ctx, p)
+		if err != nil {
+			return nil, err
+		}
+		return &MessageResult{Message: *m}, nil
+	}),
+
+	MStickersList: noParams(Backend.StickersList),
+	MStickersFetch: with(func(b Backend, ctx context.Context, p StickerParams) (*PathResult, error) {
+		if p.ID == "" {
+			return nil, InvalidParams("id is required")
+		}
+		return b.StickersFetch(ctx, p)
+	}),
+
 	MMediaFetch: with(Backend.MediaFetch),
 	MMediaThumb: with(Backend.MediaThumb),
 

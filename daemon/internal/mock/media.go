@@ -259,3 +259,48 @@ func voice(seed uint64, seconds int) []byte {
 	}
 	return out
 }
+
+// mockStickers is the picker's content: two favourites, then recent ones.
+const mockStickers = 8
+
+func stickerID(i int) string { return fmt.Sprintf("%064x", i+1) }
+
+func (b *Backend) StickersList(ctx context.Context) (*api.StickersListResult, error) {
+	out := &api.StickersListResult{Stickers: []api.Sticker{}}
+	for i := range mockStickers {
+		out.Stickers = append(out.Stickers, api.Sticker{ID: stickerID(i), Favorite: i < 2, Width: 512, Height: 512})
+	}
+	return out, nil
+}
+
+func (b *Backend) StickersFetch(ctx context.Context, p api.StickerParams) (*api.PathResult, error) {
+	path, err := b.stickerFile(p.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &api.PathResult{Path: path, Mime: "image/jpeg"}, nil
+}
+
+func (b *Backend) stickerFile(id string) (string, error) {
+	for i := range mockStickers {
+		if stickerID(i) != id {
+			continue
+		}
+		path := filepath.Join(b.dir, "sticker-"+id[56:]+".jpg")
+		if _, err := os.Stat(path); err == nil {
+			return path, nil
+		}
+		return path, writeJPEG(path, picture(hash(id), 256, 256), 80)
+	}
+	return "", fmt.Errorf("sticker %s: %w", id, api.ErrNotFound)
+}
+
+func (b *Backend) MessagesSendSticker(ctx context.Context, p api.SendStickerParams) (*api.Message, error) {
+	path, err := b.stickerFile(p.Sticker)
+	if err != nil {
+		return nil, err
+	}
+	m := &api.Message{Type: api.MsgSticker,
+		Media: &api.MediaInfo{Mime: "image/jpeg", Width: 512, Height: 512, Path: path}}
+	return b.send(p.Chat, p.ReplyTo, m)
+}

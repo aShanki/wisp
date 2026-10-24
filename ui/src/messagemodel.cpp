@@ -104,6 +104,7 @@ QHash<int, QByteArray> MessageModel::roleNames() const
         {FirstInGroupRole, "firstInGroup"},
         {SenderColorRole, "senderColor"},
         {HasMentionsRole, "hasMentions"},
+        {SenderJidRole, "senderJid"},
     };
 }
 
@@ -162,6 +163,7 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
     case FirstInGroupRole: return firstInGroup(row);
     case SenderColorRole: return m.senderColor;
     case HasMentionsRole: return !m.mentions.isEmpty();
+    case SenderJidRole: return m.sender;
     }
     return {};
 }

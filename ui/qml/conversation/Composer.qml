@@ -26,6 +26,12 @@ Item {
         restoring = false
     }
     function focusInput() { input.forceActiveFocus() }
+    // Replaces the selection, if any, as typing would.
+    function insertText(t) {
+        if (input.selectedText !== "")
+            input.remove(input.selectionStart, input.selectionEnd)
+        input.insert(input.cursorPosition, t)
+    }
     function clearDraft() {
         setChatMentions({})
         input.clear()
@@ -107,9 +113,26 @@ Item {
             checked: attachMenu.visible
             onClicked: attachMenu.openFrom(attachButton, true, false)
         }
+        IconButton {
+            id: emojiButton
+            objectName: "emojiButton"
+            anchors.left: attachButton.right
+            y: attachButton.y
+            enabled: !Conversation.readOnly
+            name: "mood"
+            checked: emojiPanel.item?.visible ?? false
+            onClicked: {
+                emojiPanel.active = true
+                const p = emojiPanel.item as EmojiPanel
+                if (p.visible)
+                    p.close()
+                else
+                    p.open()
+            }
+        }
 
         ScrollView {
-            anchors.left: attachButton.right
+            anchors.left: emojiButton.right
             anchors.right: sendButton.left
             y: field.height - field.rowH + field.pad
             height: field.rowH - 2 * field.pad
@@ -238,6 +261,22 @@ Item {
         PopupMenu.Entry {
             text: "Document"
             onTriggered: root.attach(false)
+        }
+    }
+
+    // Made on first use: it reads the whole emoji table.
+    Loader {
+        id: emojiPanel
+        active: false
+        sourceComponent: EmojiPanel {
+            parent: field
+            x: 0
+            y: -height - 8
+            width: Math.min(field.width, 480)
+            height: Math.min(440, root.spaceAbove - 8)
+            onPicked: emoji => root.insertText(emoji)
+            onStickerPicked: id => Conversation.sendSticker(id)
+            onClosed: root.focusInput()
         }
     }
 
