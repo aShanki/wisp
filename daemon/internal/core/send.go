@@ -163,6 +163,12 @@ func (c *Core) finishSend(m *api.Message, ref *api.MediaRef, sendErr error) {
 		c.setStatus(ctx, m.Chat, m.ID, api.StatusError)
 		return
 	}
+	if _, err := c.store.GetMessage(ctx, m.Chat, m.ID); err != nil {
+		if !errors.Is(err, api.ErrNotFound) {
+			c.logErr("get sent message", err, "chat", m.Chat, "id", m.ID)
+		}
+		return // deleted on another device while the send was in flight
+	}
 	if ref != nil {
 		// Keep the upload keys so our own media can be downloaded again.
 		u := *m
@@ -268,6 +274,9 @@ func (c *Core) MessagesDeleteForMe(ctx context.Context, p api.MessageRefParams) 
 	m, err := c.target(ctx, p)
 	if err != nil {
 		return err
+	}
+	if m.FromMe && m.Status == api.StatusPending {
+		return fmt.Errorf("%w: wait for the message to finish sending", api.ErrUnsupported)
 	}
 	if err := c.wa.DeleteForMe(ctx, m); err != nil {
 		return err

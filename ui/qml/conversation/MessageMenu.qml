@@ -61,7 +61,7 @@ PopupMenu {
     PopupMenu.Entry {
         text: "Delete for me"
         iconName: "delete"
-        enabled: !!menu.target
+        enabled: !!menu.target && (!menu.target.fromMe || menu.target.status !== "pending")
         onTriggered: menu.deleteRequested(menu.target.msgId, false)
     }
     PopupMenu.Entry {

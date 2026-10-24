@@ -706,6 +706,13 @@ WHERE chat = ? AND id = ? RETURNING seq`, chat, id).Scan(&seq)
 // DeleteMessage removes a message; its media row goes with it (cascade).
 func (s *Store) DeleteMessage(ctx context.Context, chat, id string) error {
 	return s.tx(ctx, func(tx *sql.Tx) error {
+		// Match UnreadIncoming's read marker before removing the message.
+		if _, err := tx.ExecContext(ctx, `UPDATE chats SET unread = MAX(0, unread - 1)
+WHERE jid = ? AND EXISTS (SELECT 1 FROM messages
+WHERE chat = chats.jid AND id = ? AND from_me = 0 AND type <> 'system'
+AND (ts, seq) > (chats.read_ts, chats.read_seq))`, chat, id); err != nil {
+			return fmt.Errorf("store: delete unread message: %w", err)
+		}
 		res, err := tx.ExecContext(ctx, `DELETE FROM messages WHERE chat = ? AND id = ?`, chat, id)
 		if err != nil {
 			return fmt.Errorf("store: delete message: %w", err)

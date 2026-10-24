@@ -1052,3 +1052,37 @@ func TestRevokeTooOld(t *testing.T) {
 		t.Errorf("wa calls = %q", h.wa.acts)
 	}
 }
+
+func TestDeleteForMeRejectsPendingSend(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	m := incoming(alice, "PENDING", selfJID, "uploading")
+	m.FromMe, m.Status, m.Type = true, api.StatusPending, api.MsgImage
+	if err := h.st.PutMessage(ctx, m, false); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.c.MessagesDeleteForMe(ctx, api.MessageRefParams{Chat: alice, ID: m.ID}); !errors.Is(err, api.ErrUnsupported) {
+		t.Fatalf("pending delete = %v", err)
+	}
+	if len(h.wa.acts) != 0 {
+		t.Fatalf("pending delete reached WhatsApp: %v", h.wa.acts)
+	}
+	if _, err := h.st.GetMessage(ctx, alice, m.ID); err != nil {
+		t.Fatalf("pending message removed: %v", err)
+	}
+}
+
+func TestUploadCompletionKeepsRemoteDeletion(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	m := incoming(alice, "UPLOAD", selfJID, "uploading")
+	m.FromMe, m.Status, m.Type = true, api.StatusPending, api.MsgImage
+	if err := h.st.PutMessage(ctx, m, false); err != nil {
+		t.Fatal(err)
+	}
+	h.c.handle(api.EvDeleteForMe{Chat: alice, ID: m.ID})
+	h.c.finishSend(m, &api.MediaRef{}, nil)
+	if _, err := h.st.GetMessage(ctx, alice, m.ID); !errors.Is(err, api.ErrNotFound) {
+		t.Fatalf("upload completion restored deleted message: %v", err)
+	}
+}
