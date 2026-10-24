@@ -128,6 +128,7 @@ func (c *Client) newWAClient(dev *store.Device) *whatsmeow.Client {
 	cli.InitialAutoReconnect = true
 	cli.EmitAppStateEventsOnFullSync = true
 	cli.AutomaticMessageRerequestFromPhone = true
+	cli.SetMediaHTTPClient(newMediaHTTP())
 	cli.AddEventHandler(func(evt any) {
 		if c.client() == cli { // a replaced client's stragglers are dropped
 			c.onEvent(cli, evt)

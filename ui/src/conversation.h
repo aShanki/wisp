@@ -6,6 +6,7 @@
 #include <QList>
 #include <QObject>
 #include <QString>
+#include <QUrl>
 #include <QVariant>
 #include <QtQml/qqmlregistration.h>
 #include <functional>
@@ -70,6 +71,8 @@ public:
     Q_INVOKABLE void cancelReply();
     Q_INVOKABLE void userTyping();
     Q_INVOKABLE void openMedia(const QString &id);
+    Q_INVOKABLE void playVideo(const QString &id);
+    Q_INVOKABLE void fetchMedia(const QString &id);
     Q_INVOKABLE void copyImage(const QString &id);
     // emoji "" removes our reaction.
     Q_INVOKABLE void react(const QString &id, const QString &emoji);
@@ -86,6 +89,7 @@ signals:
     void unreadFromChanged();
     void opened();
     void newMessage(bool fromMe);
+    void videoReady(const QString &id, const QUrl &url, bool gif);
 
 private:
     explicit ConversationController(QObject *parent = nullptr);

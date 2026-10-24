@@ -33,8 +33,10 @@ Item {
     required property string mediaFileName
     required property real mediaSize
     required property bool mediaLoading
+    required property int mediaProgress
     required property string thumbSource
     required property string mediaSource
+    required property url mediaUrl
     required property string dayLabel
     required property bool firstOfDay
     required property bool firstInGroup
@@ -285,11 +287,16 @@ Item {
                 thumbSource: root.thumbSource
                 mediaSource: root.mediaSource
                 playable: root.type === "video" || root.type === "gif"
+                gif: root.type === "gif"
+                videoUrl: root.mediaUrl
+                Component.onCompleted: if (gif && videoUrl.toString() === "" && !loading) Conversation.fetchMedia(root.msgId)
                 duration: root.mediaDuration
                 loading: root.mediaLoading
+                progress: root.mediaProgress
                 maskColor: bubble.color
                 sticker: root.isSticker
-                onClicked: root.mediaSource !== "" && !image.failed
+                onClicked: image.playable ? Conversation.playVideo(root.msgId)
+                           : root.mediaSource !== "" && !image.failed
                            ? root.imageClicked(root.msgId, root.mediaSource, root.mediaWidth, root.mediaHeight)
                            : Conversation.openMedia(root.msgId)
             }

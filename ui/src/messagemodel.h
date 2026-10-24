@@ -38,10 +38,12 @@ public:
         MediaFileNameRole,
         MediaSizeRole,
         MediaLoadingRole,
+        MediaProgressRole,
         MediaWaveformRole,
         SenderRole,
         ThumbSourceRole,
         MediaSourceRole,
+        MediaUrlRole,
         DayLabelRole,
         FirstOfDayRole,
         FirstInGroupRole,
@@ -70,6 +72,7 @@ public:
         bool fromMe = false, edited = false, deleted = false, isReply = false;
         bool hasMedia = false, isImage = false, hasThumb = false, mediaLoading = false;
         int emojiCount = 0;
+        int mediaProgress = -1; // download percent while loading, -1 unknown
         mutable bool richDone = false;
         mutable QString rich;
     };
@@ -96,6 +99,7 @@ public:
     const Msg *oldest() const { return m_rows.isEmpty() ? nullptr : &m_rows.last(); }
     const Msg &at(int row) const { return m_rows[row]; }
     void setMediaLoading(const QString &id, bool loading);
+    void setMediaProgress(const QString &id, int percent);
     void setMediaPath(const QString &id, const QString &path);
     // {id, senderName, preview} for the reply bar.
     QVariantMap quote(const QString &id) const;

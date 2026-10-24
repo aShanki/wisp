@@ -480,4 +480,18 @@ Rectangle {
         active: false
         sourceComponent: ImageViewer {}
     }
+
+    Loader {
+        id: player
+        active: false
+        sourceComponent: VideoViewer {}
+    }
+    Connections {
+        target: Conversation
+        function onVideoReady(id: string, url: url, gif: bool) {
+            player.active = true
+            const v = player.item as VideoViewer
+            v.show(id, url, gif)
+        }
+    }
 }

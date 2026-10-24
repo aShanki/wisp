@@ -323,6 +323,9 @@ void ConversationController::onEvent(const QString &name, const QJsonObject &par
         if (m_reply.value(u"id"_s).toString() == id)
             cancelReply();
         m_model->remove(id);
+    } else if (name == "media.progress"_L1) {
+        if (params["chat"_L1].toString() == m_jid)
+            m_model->setMediaProgress(params["id"_L1].toString(), params["percent"_L1].toInt());
     } else if (name == "chat.update"_L1) {
         applyChat(params["chat"_L1].toObject());
     } else if (name == "historySync.progress"_L1) {
@@ -534,6 +537,20 @@ void ConversationController::deleteForMe(const QString &id)
 void ConversationController::openMedia(const QString &id)
 {
     withMediaPath(id, [](const QString &path) { QDesktopServices::openUrl(QUrl::fromLocalFile(path)); });
+}
+
+// Downloads the media if needed; the row's mediaUrl follows.
+void ConversationController::fetchMedia(const QString &id)
+{
+    withMediaPath(id, [](const QString &) {});
+}
+
+// Downloads the video if needed, then asks the view to play it.
+void ConversationController::playVideo(const QString &id)
+{
+    const MessageModel::Msg *m = m_model->find(id);
+    const bool gif = m && m->type == "gif"_L1;
+    withMediaPath(id, [this, id, gif](const QString &path) { emit videoReady(id, QUrl::fromLocalFile(path), gif); });
 }
 
 // Puts the full-size image on the clipboard.
