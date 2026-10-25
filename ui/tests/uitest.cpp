@@ -1520,8 +1520,12 @@ void UiTest::wheelDistance()
     const qreal swipe = moved({0, 10}, {0, 40}, Qt::ScrollUpdate, 20);
     QVERIFY2(swipe > 150, qPrintable(QString::number(swipe)));
     QVERIFY(!view->property("pinned").toBool());
-    // Back down to the newest message, which pins the view again.
-    QVERIFY(moved({}, {0, -120 * 50}, Qt::NoScrollPhase, 1) < 0);
+    // Back down from there to the newest message, which pins the view again.
+    const qreal up = view->property("contentY").toReal();
+    QWheelEvent down(at, m_window->mapToGlobal(at), {}, {0, -120 * 50}, Qt::NoButton, {}, Qt::NoScrollPhase, false);
+    down.setTimestamp(clock.msecsSinceReference() + clock.elapsed());
+    QGuiApplication::sendEvent(m_window, &down);
+    QTRY_VERIFY(view->property("contentY").toReal() > up);
     QTRY_VERIFY(view->property("pinned").toBool());
 }
 
