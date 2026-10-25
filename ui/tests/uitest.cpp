@@ -1443,7 +1443,8 @@ void UiTest::scrollMotion()
         QTRY_VERIFY(view->property("pinned").toBool());
         auto *newest = itemAt(view, 0);
         QVERIFY(newest);
-        QVERIFY(std::abs(sceneRect(newest).bottom() - sceneRect(view).bottom()) <= view->property("bottomMargin").toReal() + 1);
+        // All the way down: the bottom margin shows under the newest row.
+        QVERIFY(std::abs(sceneRect(view).bottom() - view->property("bottomMargin").toReal() - sceneRect(newest).bottom()) <= 1);
     }
     m_window->resize(original);
     m_conv->close();

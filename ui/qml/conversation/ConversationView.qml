@@ -20,7 +20,7 @@ Rectangle {
 
     function scrollToBottom() {
         wheel.stop()
-        list.positionViewAtBeginning()
+        list.toEnd()
         list.pinned = true
     }
     function maybeLoadOlder() {
@@ -140,6 +140,14 @@ Rectangle {
         // runs; that move is not the user's, so it keeps the view pinned.
         property bool pinned: true
         property real laidOutHeight: 0
+        // positionViewAtBeginning() stops short of the bottom margin in a
+        // bottom-to-top list, so the newest row is then placed by hand.
+        function toEnd() {
+            positionViewAtBeginning()
+            const newest = itemAtIndex(0)
+            if (newest)
+                contentY = newest.y + newest.height + bottomMargin - height
+        }
         function updatePinned() {
             const newest = itemAtIndex(0)
             pinned = count === 0 || newest !== null && newest.y + newest.height - contentY <= height + 1
@@ -158,10 +166,10 @@ Rectangle {
         }
         onHeightChanged: {
             if (pinned)
-                positionViewAtBeginning()
+                toEnd()
             laidOutHeight = height
         }
-        onContentHeightChanged: if (pinned && !moving) positionViewAtBeginning()
+        onContentHeightChanged: if (pinned && !moving) toEnd()
 
         delegate: MessageDelegate {
             width: list.width
