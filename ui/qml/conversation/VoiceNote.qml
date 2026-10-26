@@ -1,8 +1,11 @@
 // A voice note laid out as in WhatsApp Web: the play button, the waveform
 // (a plain track when there is none) with the length under it, and the
 // sender's photo with a mic badge, right of theirs and left of ours. Green
-// until played, then blue; grey on ours until played. A click opens it.
+// until played, then blue; grey on ours until played. A click plays it in
+// place, downloading it first if needed, and pauses it; a click or drag on
+// the track seeks.
 import QtQuick
+import QtMultimedia
 import Wisp
 
 Item {
@@ -15,12 +18,16 @@ Item {
     property int duration
     property bool loading
     property var levels
+    property url mediaUrl // the local file, once downloaded
     property color fill // the bubble's
 
     readonly property bool hasLevels: levels !== undefined && levels.byteLength > 0
     readonly property real playerX: fromMe ? 70 : 8
     readonly property real trackX: playerX + 46
     readonly property real trackEnd: fromMe ? width - 8 : avatar.x - 19
+    readonly property bool playing: player.playbackState === MediaPlayer.PlayingState
+    readonly property real progress: player.duration > 0 ? player.position / player.duration : 0
+    property bool pending // clicked while downloading: play once it lands
 
     implicitWidth: 324
     implicitHeight: 55
@@ -49,10 +56,21 @@ Item {
         }
     }
 
+    MediaPlayer {
+        id: player
+        source: root.mediaUrl
+        audioOutput: AudioOutput {}
+        onMediaStatusChanged: if (mediaStatus === MediaPlayer.EndOfMedia) stop()
+    }
+    onMediaUrlChanged: if (pending && mediaUrl.toString() !== "") {
+        pending = false
+        player.play()
+    }
+
     Icon {
         x: root.playerX + 5
         y: 12.5
-        name: "play_arrow"
+        name: root.playing ? "pause" : "play_arrow"
         color: Theme.text
     }
     Waveform {
@@ -64,6 +82,7 @@ Item {
         levels: root.levels
         barColor: root.fromMe ? Theme.voiceBarMine : Theme.voiceBar
         thumbColor: root.played ? Theme.voicePlayed : root.fromMe ? Theme.voiceThumbMine : Theme.voiceNew
+        progress: root.progress
     }
     Item {
         visible: !root.hasLevels
@@ -79,6 +98,7 @@ Item {
             color: root.fromMe ? Theme.voiceTrackMine : Theme.voiceTrack
         }
         Rectangle {
+            x: root.progress * (parent.width - width)
             width: 13
             height: 13
             radius: 6.5
@@ -91,14 +111,39 @@ Item {
         y: 43
         height: 15
         verticalAlignment: Text.AlignVCenter
-        text: root.loading ? "Loading…" : Format.duration(root.duration)
+        text: root.loading ? "Loading…"
+            : Format.duration(root.playing || player.position > 0 ? Math.floor(player.position / 1000) : root.duration)
         color: Theme.bubbleMeta
         font.pixelSize: 11
+    }
+
+    function toggle() {
+        if (playing)
+            player.pause()
+        else if (mediaUrl.toString() !== "")
+            player.play()
+        else {
+            pending = true
+            Conversation.fetchMedia(msgId)
+        }
     }
 
     MouseArea {
         anchors.fill: parent
         cursorShape: Qt.PointingHandCursor
-        onClicked: Conversation.openMedia(root.msgId)
+        onClicked: root.toggle()
+    }
+    MouseArea { // the track: seeks once the file is loaded, else plays
+        x: root.trackX - 6
+        y: 6
+        width: root.trackEnd - root.trackX + 12
+        height: 37
+        cursorShape: Qt.PointingHandCursor
+        preventStealing: true
+        function seek(mx: real) {
+            player.position = Math.max(0, Math.min(1, (mx - 6) / (width - 12))) * player.duration
+        }
+        onPressed: mouse => player.duration > 0 ? seek(mouse.x) : root.toggle()
+        onPositionChanged: mouse => { if (pressed && player.duration > 0) seek(mouse.x) }
     }
 }

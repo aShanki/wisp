@@ -344,6 +344,7 @@ Item {
                 duration: root.mediaDuration
                 loading: root.mediaLoading
                 levels: root.mediaWaveform
+                mediaUrl: root.mediaUrl
                 fill: bubble.color
             }
         }

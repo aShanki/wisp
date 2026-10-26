@@ -55,6 +55,7 @@ Waveform::Waveform(QQuickItem *parent)
 {
     setAntialiasing(true);
     connect(this, &Waveform::colorsChanged, this, [this] { update(); });
+    connect(this, &Waveform::progressChanged, this, [this] { update(); });
 }
 
 void Waveform::setLevels(const QByteArray &levels)
@@ -90,5 +91,5 @@ void Waveform::paint(QPainter *painter)
     }
     painter->setPen(Qt::NoPen);
     painter->setBrush(m_thumbColor);
-    painter->drawEllipse(QPointF(inset, h / 2), thumb, thumb);
+    painter->drawEllipse(QPointF(inset + qBound(0.0, m_progress, 1.0) * pitch * (n - 1), h / 2), thumb, thumb);
 }
