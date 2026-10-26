@@ -1285,6 +1285,13 @@ void UiTest::voicePlayback()
     bytes.append(QByteArray(64000, '\0'));
     QCOMPARE(wav.write(bytes), qint64(bytes.size()));
     wav.close();
+    QMediaPlayer probe;
+    probe.setSource(QUrl::fromLocalFile(path));
+    if (!QTest::qWaitFor([&] { return probe.duration() > 0; }, 5000)) {
+        if (QGuiApplication::platformName() == "offscreen"_L1)
+            QSKIP("The offscreen multimedia backend cannot load the PCM control fixture");
+        QFAIL("The multimedia backend cannot load the PCM control fixture");
+    }
     note->setProperty("pendingMsgId", "second");
     note->setProperty("mediaUrl", QUrl::fromLocalFile(path));
     QTRY_COMPARE(player->playbackState(), QMediaPlayer::PlayingState);
