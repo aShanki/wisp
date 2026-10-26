@@ -6,6 +6,7 @@ import QtQuick
 import Wisp
 
 Item {
+    ListView.onPooled: if (voiceLoader.item) voiceLoader.item.resetPlayback()
     id: root
 
     required property string msgId
@@ -332,6 +333,7 @@ Item {
             }
         }
         Loader {
+            id: voiceLoader
             active: root.isAudio
             x: 6
             y: bubble.mediaY
@@ -344,6 +346,7 @@ Item {
                 duration: root.mediaDuration
                 loading: root.mediaLoading
                 levels: root.mediaWaveform
+                mediaUrl: root.mediaUrl
                 fill: bubble.color
             }
         }

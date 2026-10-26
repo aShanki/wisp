@@ -1,6 +1,6 @@
 // Waveform: a voice note's levels (bytes 0-100) drawn as WhatsApp Web draws
 // them: round 2.5 px bars every 4.3 px, at least 2.5 px tall, resampled to
-// fill the width, and the 6 px playback thumb at the start.
+// fill the width, and the 6 px playback thumb at progress (0-1) along them.
 #pragma once
 
 #include <QColor>
@@ -14,6 +14,7 @@ class Waveform : public QQuickPaintedItem
     Q_PROPERTY(QByteArray levels READ levels WRITE setLevels NOTIFY levelsChanged)
     Q_PROPERTY(QColor barColor MEMBER m_barColor NOTIFY colorsChanged)
     Q_PROPERTY(QColor thumbColor MEMBER m_thumbColor NOTIFY colorsChanged)
+    Q_PROPERTY(qreal progress MEMBER m_progress NOTIFY progressChanged)
 
 public:
     explicit Waveform(QQuickItem *parent = nullptr);
@@ -25,8 +26,10 @@ public:
 signals:
     void levelsChanged();
     void colorsChanged();
+    void progressChanged();
 
 private:
     QByteArray m_levels;
     QColor m_barColor, m_thumbColor;
+    qreal m_progress = 0;
 };
