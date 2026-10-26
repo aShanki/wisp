@@ -27,7 +27,7 @@ Item {
     readonly property real trackEnd: fromMe ? width - 8 : avatar.x - 19
     readonly property bool playing: player.playbackState === MediaPlayer.PlayingState
     readonly property real progress: player.duration > 0 ? player.position / player.duration : 0
-    property bool pending // clicked while downloading: play once it lands
+    property string pendingMsgId // clicked while downloading: play once it lands
 
     implicitWidth: 324
     implicitHeight: 55
@@ -62,10 +62,17 @@ Item {
         audioOutput: AudioOutput {}
         onMediaStatusChanged: if (mediaStatus === MediaPlayer.EndOfMedia) stop()
     }
-    onMediaUrlChanged: if (pending && mediaUrl.toString() !== "") {
-        pending = false
-        player.play()
+    function resetPlayback() {
+        pendingMsgId = ""
+        player.stop()
     }
+    onMsgIdChanged: resetPlayback()
+    onMediaUrlChanged: Qt.callLater(function() {
+        if (pendingMsgId !== "" && pendingMsgId === msgId && mediaUrl.toString() !== "") {
+            pendingMsgId = ""
+            player.play()
+        }
+    })
 
     Icon {
         x: root.playerX + 5
@@ -123,7 +130,7 @@ Item {
         else if (mediaUrl.toString() !== "")
             player.play()
         else {
-            pending = true
+            pendingMsgId = msgId
             Conversation.fetchMedia(msgId)
         }
     }

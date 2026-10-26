@@ -21,6 +21,7 @@
 #include <QImage>
 #include <QJsonArray>
 #include <QMimeData>
+#include <QMediaPlayer>
 #include <QPalette>
 #include <QProcess>
 #include <QQmlApplicationEngine>
@@ -125,6 +126,7 @@ private slots:
     void wheelDistance();
     void menuPlacement();
     void voiceNote();
+    void voicePlayback();
     void composerReply();
     void emojiSuggest();
     void emojiPanel();
@@ -1258,6 +1260,46 @@ void UiTest::voiceNote()
         const QRectF w = sceneRect(waveform).translated(-bubble.topLeft());
         QCOMPARE(w, fromMe ? QRectF(122, 19, 200, 24) : QRectF(60, 19, 192, 24));
     }
+}
+
+void UiTest::voicePlayback()
+{
+    QQmlEngine engine;
+    QQmlComponent component(&engine);
+    component.setData("import QtQuick\nimport Wisp\nVoiceNote { msgId: \"first\"; duration: 2 }", QUrl());
+    std::unique_ptr<QObject> note(component.create());
+    QVERIFY2(note, qPrintable(component.errorString()));
+    auto *player = note->findChild<QMediaPlayer *>();
+    QVERIFY(player);
+
+    // A recycled row must discard the old message's download intent.
+    note->setProperty("pendingMsgId", "first");
+    note->setProperty("msgId", "second");
+    QCOMPARE(note->property("pendingMsgId").toString(), QString());
+
+    // A short PCM file exercises the actual Qt Multimedia backend.
+    const QString path = m_dir + "/voice.wav"_L1;
+    QFile wav(path);
+    QVERIFY(wav.open(QIODevice::WriteOnly));
+    QByteArray bytes = QByteArray::fromHex("5249464624fa000057415645666d74201000000001000100803e0000007d0000020010006461746100fa0000");
+    bytes.append(QByteArray(64000, '\0'));
+    QCOMPARE(wav.write(bytes), qint64(bytes.size()));
+    wav.close();
+    note->setProperty("pendingMsgId", "second");
+    note->setProperty("mediaUrl", QUrl::fromLocalFile(path));
+    QTRY_COMPARE(player->playbackState(), QMediaPlayer::PlayingState);
+    QTRY_VERIFY(player->position() > 0);
+    QVERIFY(QMetaObject::invokeMethod(note.get(), "toggle"));
+    QCOMPARE(player->playbackState(), QMediaPlayer::PausedState);
+    player->setPosition(1000);
+    QTRY_VERIFY(player->position() >= 1000);
+    QVERIFY(note->property("progress").toReal() >= 0.49);
+    QVERIFY(QMetaObject::invokeMethod(note.get(), "toggle"));
+    QTRY_COMPARE(player->playbackState(), QMediaPlayer::StoppedState);
+    QCOMPARE(player->position(), qint64(0));
+    note->setProperty("pendingMsgId", "second");
+    QVERIFY(QMetaObject::invokeMethod(note.get(), "resetPlayback"));
+    QCOMPARE(note->property("pendingMsgId").toString(), QString());
 }
 
 // A reply grows the composer upwards, as in WhatsApp Web: the quote card, its
