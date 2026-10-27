@@ -126,6 +126,10 @@ FocusScope {
                 selectedTextColor: Theme.text
                 ContextMenu.menu: null
                 ContextMenu.onRequested: position => captionMenu.openAt(position.x, position.y)
+                TapHandler {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: eventPoint => captionMenu.openAt(eventPoint.position.x, eventPoint.position.y)
+                }
                 padding: 14
                 background: null
                 onTextChanged: if (!root.restoring) Conversation.attachments.setCaption(root.currentIndex, text)
