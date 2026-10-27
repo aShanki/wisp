@@ -1569,6 +1569,30 @@ void UiTest::wheelDistance()
     const qreal swipe = moved({0, 10}, {0, 40}, Qt::ScrollUpdate, 20);
     QVERIFY2(swipe > 150, qPrintable(QString::number(swipe)));
     QVERIFY(!view->property("pinned").toBool());
+    // A swipe still moving as the fingers lift coasts on (Wayland adds no
+    // momentum), and touching the trackpad again catches it.
+    QMetaObject::invokeMethod(view->parentItem(), "scrollToBottom");
+    frame();
+    const auto send = [&](QPoint pixel, Qt::ScrollPhase phase) {
+        QWheelEvent e(at, m_window->mapToGlobal(at), pixel, pixel * 4, Qt::NoButton, {}, phase, false);
+        e.setTimestamp(clock.msecsSinceReference() + clock.elapsed());
+        QGuiApplication::sendEvent(m_window, &e);
+    };
+    send({}, Qt::ScrollBegin);
+    for (int i = 0; i < 8; ++i) {
+        QTest::qWait(8);
+        send({0, 12}, Qt::ScrollUpdate);
+    }
+    const qreal lifted = view->property("contentY").toReal();
+    send({}, Qt::ScrollEnd);
+    QTest::qWait(150);
+    const qreal coasted = lifted - view->property("contentY").toReal();
+    QVERIFY2(coasted > 50, qPrintable(QString::number(coasted)));
+    send({}, Qt::ScrollBegin);
+    const qreal caught = view->property("contentY").toReal();
+    QTest::qWait(100);
+    QCOMPARE(view->property("contentY").toReal(), caught);
+    send({}, Qt::ScrollEnd);
     // Back down from there to the newest message, which pins the view again.
     const qreal up = view->property("contentY").toReal();
     QWheelEvent down(at, m_window->mapToGlobal(at), {}, {0, -120 * 50}, Qt::NoButton, {}, Qt::NoScrollPhase, false);
