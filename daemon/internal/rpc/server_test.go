@@ -36,9 +36,21 @@ type reply struct {
 	Error  *Error          `json:"error"`
 }
 
+func tempSock(t *testing.T, name string) string {
+	t.Helper()
+	sock := filepath.Join(t.TempDir(), name)
+	if len(sock) >= 100 {
+		if d, err := os.MkdirTemp("", "wisp-*"); err == nil {
+			t.Cleanup(func() { _ = os.RemoveAll(d) })
+			sock = filepath.Join(d, name)
+		}
+	}
+	return sock
+}
+
 func start(t *testing.T, cfg mock.Config) string {
 	t.Helper()
-	sock := filepath.Join(t.TempDir(), "wisp.sock")
+	sock := tempSock(t, "wisp.sock")
 	b := mock.New(cfg)
 	srv := NewServer(b, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	ctx, cancel := context.WithCancel(context.Background())
@@ -334,7 +346,7 @@ func TestSingleInstance(t *testing.T) {
 		t.Fatalf("socket mode: %v %v", fi.Mode(), err)
 	}
 
-	stale := filepath.Join(t.TempDir(), "stale.sock")
+	stale := tempSock(t, "stale.sock")
 	ln, err := net.Listen("unix", stale)
 	if err != nil {
 		t.Fatal(err)

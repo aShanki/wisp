@@ -41,6 +41,12 @@ func privateBus(t *testing.T) string {
 	}
 	dir := t.TempDir()
 	sock, conf := filepath.Join(dir, "bus"), filepath.Join(dir, "bus.conf")
+	if len(sock) >= 100 {
+		if d, err := os.MkdirTemp("", "dbus-*"); err == nil {
+			t.Cleanup(func() { _ = os.RemoveAll(d) })
+			sock, conf = filepath.Join(d, "bus"), filepath.Join(d, "bus.conf")
+		}
+	}
 	if err := os.WriteFile(conf, []byte(strings.ReplaceAll(busConfig, "%SOCK%", sock)), 0o600); err != nil {
 		t.Fatal(err)
 	}

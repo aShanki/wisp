@@ -141,6 +141,10 @@ Item {
             TextArea {
                 id: input
                 objectName: "composerInput"
+                TapHandler {
+                    acceptedButtons: Qt.RightButton
+                    onTapped: eventPoint => textMenu.openAt(eventPoint.position.x, eventPoint.position.y)
+                }
                 enabled: !Conversation.readOnly
                 placeholderText: Conversation.readOnly ? "Only admins can send messages" : "Type a message"
                 placeholderTextColor: Theme.textMuted
