@@ -23,11 +23,25 @@ func (c *Client) SendText(ctx context.Context, chat, id, text string, reply *api
 	if err != nil {
 		return err
 	}
+	text, jids, err := c.mentioning(ctx, cli, to, text, mentions)
+	if err != nil {
+		return err
+	}
+	m := textMessage(text, replyContext(reply, to), jids)
+	if _, err := cli.SendMessage(ctx, to, m, whatsmeow.SendRequestExtra{ID: id}); err != nil {
+		return fmt.Errorf("wa: send: %w", err)
+	}
+	return nil
+}
+
+// mentioning parses mentions, the JIDs written in text as "@<user>"; in
+// groups addressed by LID it swaps them, and their tokens, for LIDs.
+func (c *Client) mentioning(ctx context.Context, cli *whatsmeow.Client, to types.JID, text string, mentions []string) (string, []types.JID, error) {
 	jids := make([]types.JID, 0, len(mentions))
 	for _, s := range mentions {
 		j, err := parseJID(s)
 		if err != nil {
-			return err
+			return "", nil, err
 		}
 		jids = append(jids, j.ToNonAD())
 	}
@@ -37,24 +51,27 @@ func (c *Client) SendText(ctx context.Context, chat, id, text string, reply *api
 			return lid
 		})
 	}
-	m := textMessage(text, replyContext(reply, to), jids)
-	if _, err := cli.SendMessage(ctx, to, m, whatsmeow.SendRequestExtra{ID: id}); err != nil {
-		return fmt.Errorf("wa: send: %w", err)
+	return text, jids, nil
+}
+
+// withMentions adds mentioned JIDs to ci, making one if needed.
+func withMentions(ci *waE2E.ContextInfo, mentions []types.JID) *waE2E.ContextInfo {
+	if len(mentions) == 0 {
+		return ci
 	}
-	return nil
+	if ci == nil {
+		ci = &waE2E.ContextInfo{}
+	}
+	for _, j := range mentions {
+		ci.MentionedJID = append(ci.MentionedJID, j.String())
+	}
+	return ci
 }
 
 // textMessage is a plain text message, or an extended one when it quotes a
 // message or mentions people.
 func textMessage(text string, ci *waE2E.ContextInfo, mentions []types.JID) *waE2E.Message {
-	if len(mentions) > 0 {
-		if ci == nil {
-			ci = &waE2E.ContextInfo{}
-		}
-		for _, j := range mentions {
-			ci.MentionedJID = append(ci.MentionedJID, j.String())
-		}
-	}
+	ci = withMentions(ci, mentions)
 	if ci == nil {
 		return &waE2E.Message{Conversation: new(text)}
 	}
@@ -90,8 +107,12 @@ func mentionLIDs(text string, jids []types.JID, lidFor func(types.JID) types.JID
 }
 
 // SendMedia uploads m and sends it as an image or, for anything else, a document.
-func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.OutgoingMedia, caption string, reply *api.ReplyRef) (*api.MediaRef, error) {
+func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.OutgoingMedia, caption string, reply *api.ReplyRef, mentions []string) (*api.MediaRef, error) {
 	cli, to, err := c.sendTarget(ctx, chat)
+	if err != nil {
+		return nil, err
+	}
+	caption, jids, err := c.mentioning(ctx, cli, to, caption, mentions)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +124,7 @@ func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.Outgoing
 	if err != nil {
 		return nil, fmt.Errorf("wa: upload: %w", err)
 	}
-	ci := replyContext(reply, to)
+	ci := withMentions(replyContext(reply, to), jids)
 	var msg *waE2E.Message
 	if typ == api.MsgSticker {
 		msg = &waE2E.Message{StickerMessage: &waE2E.StickerMessage{
@@ -376,6 +397,22 @@ func (c *Client) Revoke(ctx context.Context, m *api.Message) error {
 	}
 	if _, err := cli.SendMessage(ctx, to, cli.BuildRevoke(to, types.EmptyJID, m.ID)); err != nil {
 		return fmt.Errorf("wa: revoke: %w", err)
+	}
+	return nil
+}
+
+// Edit replaces the text of one of our messages for everyone.
+func (c *Client) Edit(ctx context.Context, m *api.Message, text string, mentions []string) error {
+	cli, to, err := c.sendTarget(ctx, m.Chat)
+	if err != nil {
+		return err
+	}
+	text, jids, err := c.mentioning(ctx, cli, to, text, mentions)
+	if err != nil {
+		return err
+	}
+	if _, err := cli.SendMessage(ctx, to, cli.BuildEdit(to, m.ID, textMessage(text, nil, jids))); err != nil {
+		return fmt.Errorf("wa: edit: %w", err)
 	}
 	return nil
 }

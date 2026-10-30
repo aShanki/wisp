@@ -34,6 +34,8 @@ type Backend interface {
 	MessagesSendMedia(ctx context.Context, p SendMediaParams) (*Message, error)
 	MessagesSendSticker(ctx context.Context, p SendStickerParams) (*Message, error)
 	MessagesReact(ctx context.Context, p ReactParams) error
+	// MessagesEdit changes the text of one of our text messages for everyone.
+	MessagesEdit(ctx context.Context, p EditParams) error
 	// MessagesRevoke deletes one of our messages for everyone.
 	MessagesRevoke(ctx context.Context, p MessageRefParams) error
 	// MessagesDeleteForMe removes a message here and on our other devices.
@@ -213,7 +215,7 @@ type WA interface {
 	// MediaRef so our own media can be downloaded again. On error the caller
 	// marks it StatusError. mentions are JIDs written in text as "@<user>".
 	SendText(ctx context.Context, chat, id, text string, reply *ReplyRef, mentions []string) error
-	SendMedia(ctx context.Context, chat, id string, m *OutgoingMedia, caption string, reply *ReplyRef) (*MediaRef, error)
+	SendMedia(ctx context.Context, chat, id string, m *OutgoingMedia, caption string, reply *ReplyRef, mentions []string) (*MediaRef, error)
 	MarkRead(ctx context.Context, keys []MsgKey, private bool) error // private: read-self, no blue ticks
 	SetTyping(ctx context.Context, chat string, typing bool) error
 	SubscribePresence(ctx context.Context, jid string) error
@@ -223,6 +225,8 @@ type WA interface {
 	// m.Sender and m.FromMe say whose message it is.
 	React(ctx context.Context, m *Message, emoji string) error
 	Revoke(ctx context.Context, m *Message) error
+	// Edit replaces the text of our message m; mentions as in SendText.
+	Edit(ctx context.Context, m *Message, text string, mentions []string) error
 	DeleteForMe(ctx context.Context, m *Message) error
 	SetPinned(ctx context.Context, chat string, pinned bool) error
 	// ResyncAppState fetches the chat settings (pin, mute, archive) and

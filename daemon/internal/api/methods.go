@@ -22,6 +22,7 @@ const (
 	MMessagesSendMedia   = "messages.sendMedia"
 	MMessagesSendSticker = "messages.sendSticker"
 	MMessagesReact       = "messages.react"
+	MMessagesEdit        = "messages.edit"
 	MMessagesRevoke      = "messages.revoke"
 	MMessagesDeleteForMe = "messages.deleteForMe"
 
@@ -136,6 +137,14 @@ type ReactParams struct {
 	Emoji string `json:"emoji"` // "" removes our reaction
 }
 
+// EditParams replaces the text of one of our text messages.
+type EditParams struct {
+	Chat     string   `json:"chat"`
+	ID       string   `json:"id"`
+	Text     string   `json:"text"`
+	Mentions []string `json:"mentions"` // as in SendParams
+}
+
 type SendParams struct {
 	Chat     string   `json:"chat"`
 	Text     string   `json:"text"`
@@ -148,6 +157,8 @@ type SendMediaParams struct {
 	Path    string `json:"path"` // absolute local file path
 	Caption string `json:"caption"`
 	ReplyTo string `json:"replyTo"`
+	// Mentions in the caption, as in SendParams.
+	Mentions []string `json:"mentions"`
 }
 
 type SendStickerParams struct {

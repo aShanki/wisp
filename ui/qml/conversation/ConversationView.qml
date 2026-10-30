@@ -370,6 +370,7 @@ Rectangle {
         anchors.fill: parent
         active: Conversation.attachments.count > 0
         sourceComponent: MediaPreview {
+            mentions: composer.chatMentions // a draft's mentions carry into its caption
             onSent: {
                 composer.clearDraft()
                 view.scrollToBottom()
@@ -388,6 +389,14 @@ Rectangle {
         }
         onCopyRequested: rich => view.copyRich(rich)
         onReactRequested: (id, mine) => reactions.show(id, mine, menu.x, menu.y)
+        onMoreReactionsRequested: (id, mine) => {
+            reactPanel.msgId = id
+            reactPanel.mine = mine
+            reactPanel.x = Math.max(0, Math.min(menu.x, reactPanel.parent.width - reactPanel.width))
+            reactPanel.y = Math.max(0, Math.min(menu.y, reactPanel.parent.height - reactPanel.height))
+            reactPanel.open()
+        }
+        onEditRequested: (id, rich, time) => editor.show(id, rich, time)
         onDeleteRequested: (id, forEveryone) => {
             deleteConfirm.msgId = id
             deleteConfirm.forEveryone = forEveryone
@@ -505,6 +514,11 @@ Rectangle {
             Conversation.react(msgId, emoji === mine ? "" : emoji)
             close()
         }
+        onClosed: composer.focusInput()
+    }
+
+    EditDialog {
+        id: editor
         onClosed: composer.focusInput()
     }
 

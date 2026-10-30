@@ -40,7 +40,9 @@ int main(int argc, char *argv[])
     app.setOrganizationName(u"wisp"_s);
     app.setApplicationVersion(QStringLiteral(WISP_VERSION));
     app.setDesktopFileName(u"wisp"_s);
-    app.setWindowIcon(QIcon::fromTheme(u"wisp"_s));
+    // Linux icon themes only; on macOS a null icon would replace the bundle's.
+    if (const QIcon icon = QIcon::fromTheme(u"wisp"_s); !icon.isNull())
+        app.setWindowIcon(icon);
 
     QCommandLineParser cli;
     cli.addHelpOption();

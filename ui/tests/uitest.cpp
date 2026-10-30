@@ -893,6 +893,64 @@ void UiTest::messageActions()
     QTRY_VERIFY(mineReacted(mineId, u"🎉"_s));
     QTRY_VERIFY(!panel->property("visible").toBool());
 
+    // The menu has the quick reactions in a pill on top: one click reacts
+    // and closes it, and one click outside closes it.
+    entries = open(mine);
+    QQuickItem *quick = m_window->findChild<QQuickItem *>(u"quickReactions"_s);
+    QVERIFY(quick && quick->isVisible());
+    QVERIFY(sceneRect(quick).bottom() <= sceneRect(entries.first()).top());
+    QQuickItem *heart = nullptr;
+    for (QQuickItem *cell : quick->childItems().value(0)->childItems())
+        if (cell->property("modelData").toString() == u"❤️"_s)
+            heart = cell;
+    QVERIFY(heart);
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, sceneRect(heart).center().toPoint());
+    QTRY_VERIFY(mineReacted(mineId, u"❤️"_s));
+    QTRY_VERIFY(!menu->property("visible").toBool());
+    open(mine);
+    QVERIFY(menu->property("opened").toBool());
+    QTest::mouseClick(m_window, Qt::LeftButton, {},
+                      sceneRect(named(m_window->contentItem(), u"composerField"_s)).center().toPoint());
+    QTRY_VERIFY(!menu->property("visible").toBool());
+
+    // Edit: only our text messages from the last 15 minutes. A fresh one
+    // opens the editor with its text; saving changes it for everyone.
+    QVERIFY(!open(mine).contains(u"Edit"_s) || mine->property("type").toString() == "text"_L1);
+    QMetaObject::invokeMethod(menu, "close");
+    QTRY_VERIFY(!menu->property("visible").toBool());
+    QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+    type(u"typo hre"_s);
+    key(Qt::Key_Return);
+    QString freshId;
+    QTRY_VERIFY(!(freshId = event(u"message.new"_s, [](const QJsonObject &m) {
+        return m["text"_L1] == "typo hre"_L1; })["id"_L1].toString()).isEmpty());
+    QTRY_VERIFY(model->index(model->indexOf(freshId), 0).data(MessageModel::StatusRole).toString() != "pending"_L1);
+    QQuickItem *fresh = nullptr;
+    QTRY_VERIFY((fresh = itemAt(view, model->indexOf(freshId))));
+    entries = open(fresh);
+    QVERIFY2(entries.contains(u"Edit"_s), qPrintable(QStringList(entries.keys()).join(u", "_s)));
+    QVERIFY(QMetaObject::invokeMethod(entries[u"Edit"_s], "click"));
+    QObject *editor = m_window->findChild<QObject *>(u"editDialog"_s);
+    QVERIFY(editor);
+    QTRY_VERIFY(editor->property("opened").toBool());
+    QQuickItem *editInput = m_window->findChild<QQuickItem *>(u"editInput"_s);
+    QVERIFY(editInput);
+    QCOMPARE(editInput->property("text").toString(), u"typo hre"_s);
+    QTRY_VERIFY(editInput->hasActiveFocus());
+    shoot(u"edit-message"_s);
+    key(Qt::Key_A, Qt::ControlModifier);
+    type(u"typo here"_s);
+    key(Qt::Key_Return);
+    QTRY_VERIFY(!editor->property("visible").toBool());
+    const QModelIndex edited = model->index(model->indexOf(freshId), 0);
+    QTRY_VERIFY(edited.data(MessageModel::EditedRole).toBool());
+    QVERIFY(edited.data(MessageModel::RichTextRole).toString().contains(u"typo here"_s));
+    QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+    // Theirs can't be edited.
+    QVERIFY(!open(visible(false)).contains(u"Edit"_s));
+    QMetaObject::invokeMethod(menu, "close");
+    QTRY_VERIFY(!menu->property("visible").toBool());
+
     // Delete for everyone, after confirming.
     QVERIFY(QMetaObject::invokeMethod(open(mine).value(u"Delete for everyone"_s), "click"));
     QTRY_VERIFY(confirm->property("opened").toBool());
@@ -1937,6 +1995,30 @@ void UiTest::mentionPicker()
     key(Qt::Key_Return);
     QTRY_VERIFY(!(msg = sent([&](const QJsonObject &m) { return m["text"_L1] == edited; })).isEmpty());
     QVERIFY(msg["mentions"_L1].toArray().isEmpty());
+
+    // A photo's caption mentions too.
+    QImage photo(64, 48, QImage::Format_RGB32);
+    photo.fill(Qt::darkGreen);
+    const QString photoPath = m_dir + "/mention.png"_L1;
+    QVERIFY(photo.save(photoPath));
+    m_conv->stageFiles({photoPath});
+    QQuickItem *caption = nullptr;
+    QTRY_VERIFY((caption = named(root, u"attachmentCaption"_s)) && caption->hasActiveFocus());
+    QQuickItem *captionPicker = named(root, u"captionMentionPicker"_s);
+    QVERIFY(captionPicker);
+    type(u"for @"_s);
+    QTRY_VERIFY(captionPicker->isVisible());
+    shoot(u"caption-mention"_s);
+    const QString captionJid = jid(0), captionName = name(0);
+    key(Qt::Key_Return);
+    QCOMPARE(caption->property("text").toString(), u"for @"_s + captionName + u' ');
+    QVERIFY(m_conv->attachments()->count() == 1);
+    key(Qt::Key_Return);
+    const QString captionWire = u"for @"_s + user(captionJid);
+    QTRY_VERIFY(!(msg = sent([&](const QJsonObject &m) { return m["text"_L1] == captionWire; })).isEmpty());
+    QCOMPARE(msg["mentions"_L1].toArray().size(), 1);
+    QCOMPARE(msg["mentions"_L1][0]["jid"_L1].toString(), captionJid);
+    QTRY_VERIFY(input->hasActiveFocus());
 
     // No picker outside groups.
     openBigChat();

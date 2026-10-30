@@ -20,13 +20,8 @@ func (c *Core) MessagesSend(ctx context.Context, p api.SendParams) (*api.Message
 	}
 	m := c.newOutgoing(p.Chat)
 	m.Type, m.Text = api.MsgText, p.Text
-	var jids []string
-	for _, j := range p.Mentions {
-		if j != "" && !slices.Contains(jids, j) {
-			jids = append(jids, j)
-			m.Mentions = append(m.Mentions, api.Mention{JID: j, Me: j == m.Sender})
-		}
-	}
+	jids, mentions := c.mentionList(p.Mentions)
+	m.Mentions = mentions
 	reply := c.attachReply(ctx, m, p.ReplyTo)
 	return c.sendAsync(ctx, m, func(ctx context.Context) (*api.MediaRef, error) {
 		return nil, c.wa.SendText(ctx, m.Chat, m.ID, m.Text, reply, jids)
@@ -42,7 +37,7 @@ func (c *Core) MessagesSendMedia(ctx context.Context, p api.SendMediaParams) (*a
 	if err != nil {
 		return nil, err
 	}
-	return c.sendPrepared(ctx, p.Chat, om, p.Caption, p.ReplyTo)
+	return c.sendPrepared(ctx, p.Chat, om, p.Caption, p.ReplyTo, p.Mentions)
 }
 
 // MessagesSendSticker sends a sticker from stickers.list. It is uploaded
@@ -61,7 +56,7 @@ func (c *Core) MessagesSendSticker(ctx context.Context, p api.SendStickerParams)
 	}
 	om := &api.OutgoingMedia{Type: api.MsgSticker, Mime: "image/webp", FileName: "sticker.webp", Data: data,
 		Width: cmp.Or(st.Width, 512), Height: cmp.Or(st.Height, 512), Animated: animatedWebP(data)}
-	return c.sendPrepared(ctx, p.Chat, om, "", p.ReplyTo)
+	return c.sendPrepared(ctx, p.Chat, om, "", p.ReplyTo, nil)
 }
 
 // animatedWebP reports the animation flag of an extended (VP8X) WebP.
@@ -72,9 +67,11 @@ func animatedWebP(b []byte) bool {
 
 // sendPrepared caches a copy of the file so the pending message already
 // shows it, then uploads and sends in the background.
-func (c *Core) sendPrepared(ctx context.Context, chat string, om *api.OutgoingMedia, caption, replyTo string) (*api.Message, error) {
+func (c *Core) sendPrepared(ctx context.Context, chat string, om *api.OutgoingMedia, caption, replyTo string, mentioned []string) (*api.Message, error) {
 	m := c.newOutgoing(chat)
 	m.Type, m.Text, m.Thumb = om.Type, caption, om.Thumb
+	jids, mentions := c.mentionList(mentioned)
+	m.Mentions = mentions
 	m.MediaRef = &api.MediaRef{Chat: m.Chat, ID: m.ID, Type: om.Type, Mime: om.Mime,
 		FileName: om.FileName, FileLength: uint64(len(om.Data))}
 	path, err := c.media.Put(ctx, m.MediaRef, om.Data)
@@ -85,8 +82,22 @@ func (c *Core) sendPrepared(ctx context.Context, chat string, om *api.OutgoingMe
 		FileName: om.FileName, HasThumb: len(om.Thumb) > 0, Path: path}
 	reply := c.attachReply(ctx, m, replyTo)
 	return c.sendAsync(ctx, m, func(ctx context.Context) (*api.MediaRef, error) {
-		return c.wa.SendMedia(ctx, m.Chat, m.ID, om, m.Text, reply)
+		return c.wa.SendMedia(ctx, m.Chat, m.ID, om, m.Text, reply, jids)
 	})
+}
+
+// mentionList dedupes the mentioned JIDs and makes the stored mentions.
+func (c *Core) mentionList(in []string) ([]string, []api.Mention) {
+	self := c.wa.SelfJID()
+	var jids []string
+	mentions := []api.Mention{}
+	for _, j := range in {
+		if j != "" && !slices.Contains(jids, j) {
+			jids = append(jids, j)
+			mentions = append(mentions, api.Mention{JID: j, Me: j == self})
+		}
+	}
+	return jids, mentions
 }
 
 func (c *Core) newOutgoing(chat string) *api.Message {
@@ -237,6 +248,39 @@ func (c *Core) MessagesReact(ctx context.Context, p api.ReactParams) error {
 	defer c.writeMu.Unlock()
 	u, err := c.store.ApplyReaction(ctx, api.EvReaction{Chat: p.Chat, ID: p.ID, Sender: c.wa.SelfJID(),
 		FromMe: true, Emoji: p.Emoji, Ts: time.Now().Unix()})
+	if err != nil {
+		return err
+	}
+	c.emitUpdates(ctx, p.Chat, u)
+	return nil
+}
+
+// editWindow is how long after sending WhatsApp lets us edit a message.
+const editWindow = 15 * time.Minute
+
+// MessagesEdit changes the text of one of our sent text messages.
+func (c *Core) MessagesEdit(ctx context.Context, p api.EditParams) error {
+	m, err := c.target(ctx, api.MessageRefParams{Chat: p.Chat, ID: p.ID})
+	if err != nil {
+		return err
+	}
+	switch {
+	case !m.FromMe:
+		return fmt.Errorf("%w: only your own messages can be edited", api.ErrUnsupported)
+	case m.Deleted || m.Type != api.MsgText:
+		return fmt.Errorf("%w: only text messages can be edited", api.ErrUnsupported)
+	case m.Status == api.StatusPending || m.Status == api.StatusError:
+		return fmt.Errorf("%w: wait for the message to finish sending", api.ErrUnsupported)
+	case time.Since(time.Unix(m.Timestamp, 0)) > editWindow:
+		return fmt.Errorf("%w: too old to edit", api.ErrUnsupported)
+	}
+	jids, mentions := c.mentionList(p.Mentions)
+	if err := c.wa.Edit(ctx, m, p.Text, jids); err != nil {
+		return err
+	}
+	c.writeMu.Lock()
+	defer c.writeMu.Unlock()
+	u, err := c.store.ApplyEdit(ctx, p.Chat, p.ID, p.Text, mentions, time.Now().Unix())
 	if err != nil {
 		return err
 	}

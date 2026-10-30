@@ -42,9 +42,12 @@ if [[ $platform == macos-arm64 ]]; then
     rm -rf "$app"
     ditto build/ui/wisp.app "$app"
     cp bin/wispd bin/wispctl "$app/Contents/MacOS/"
-    # Optional assets from the developer's local WhatsApp asset cache.
-    for name in Wisp.icns notification.mp3 notification.ogg; do
-        if [[ -f build/whatsapp/$name ]]; then cp "build/whatsapp/$name" "$app/Contents/Resources/"; fi
+    # Optional sounds from the developer's local WhatsApp asset cache, or the
+    # main checkout's from a worktree. The build already bundled the icon.
+    cache=build/whatsapp
+    if [[ ! -d $cache ]]; then cache="$(git rev-parse --git-common-dir)/../build/whatsapp"; fi
+    for name in notification.mp3 notification.ogg; do
+        if [[ -f $cache/$name ]]; then cp "$cache/$name" "$app/Contents/Resources/"; fi
     done
     deploy_args=("$app" "-qmldir=$PWD/ui/qml" -always-overwrite)
     qt_libdir=${QT_LIBDIR:-/opt/homebrew/lib}

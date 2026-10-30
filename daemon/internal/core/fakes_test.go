@@ -112,7 +112,7 @@ func (w *fakeWA) SendText(ctx context.Context, chat, id, text string, reply *api
 	w.waitGate()
 	return err
 }
-func (w *fakeWA) SendMedia(ctx context.Context, chat, id string, m *api.OutgoingMedia, caption string, reply *api.ReplyRef) (*api.MediaRef, error) {
+func (w *fakeWA) SendMedia(ctx context.Context, chat, id string, m *api.OutgoingMedia, caption string, reply *api.ReplyRef, mentions []string) (*api.MediaRef, error) {
 	w.mu.Lock()
 	w.sends = append(w.sends, sendCall{chat: chat, id: id, text: caption, reply: reply, media: m})
 	err := w.sendErr
@@ -151,6 +151,9 @@ func (w *fakeWA) act(s string) error {
 }
 func (w *fakeWA) React(ctx context.Context, m *api.Message, emoji string) error {
 	return w.act("react " + m.ID + " " + emoji)
+}
+func (w *fakeWA) Edit(ctx context.Context, m *api.Message, text string, mentions []string) error {
+	return w.act("edit " + m.ID + " " + text)
 }
 func (w *fakeWA) Revoke(ctx context.Context, m *api.Message) error { return w.act("revoke " + m.ID) }
 func (w *fakeWA) DeleteForMe(ctx context.Context, m *api.Message) error {

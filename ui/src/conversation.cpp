@@ -356,13 +356,10 @@ void ConversationController::sendMessage(const QString &method, QJsonObject para
     });
 }
 
-void ConversationController::send(const QString &text, const QVariantMap &mentions)
+// On the wire a mention is "@" and the JID's user part; mentions maps the
+// names typed as "@Name" to JIDs.
+static std::pair<QString, QJsonArray> encodeMentions(const QString &typed, const QVariantMap &mentions)
 {
-    const QString typed = text.trimmed();
-    if (m_jid.isEmpty() || typed.isEmpty())
-        return;
-    stopTyping();
-    // On the wire a mention is "@" and the JID's user part.
     QString body;
     QJsonArray jids;
     qsizetype done = 0;
@@ -375,6 +372,16 @@ void ConversationController::send(const QString &text, const QVariantMap &mentio
         done = at + length;
     }
     body += QStringView(typed).sliced(done);
+    return {body, jids};
+}
+
+void ConversationController::send(const QString &text, const QVariantMap &mentions)
+{
+    const QString typed = text.trimmed();
+    if (m_jid.isEmpty() || typed.isEmpty())
+        return;
+    stopTyping();
+    const auto [body, jids] = encodeMentions(typed, mentions);
     sendMessage(u"messages.send"_s, {{u"text"_s, body}, {u"mentions"_s, jids}});
 }
 
@@ -420,14 +427,16 @@ void ConversationController::stageFiles(const QStringList &files, const QString 
     }
 }
 
-void ConversationController::sendAttachments()
+void ConversationController::sendAttachments(const QVariantMap &mentions)
 {
     if (m_jid.isEmpty() || m_readOnly)
         return;
     stopTyping();
-    for (const auto &file : m_attachments->take())
-        sendMessage(u"messages.sendMedia"_s, {{u"path"_s, file.path}, {u"caption"_s, file.caption.trimmed()}},
+    for (const auto &file : m_attachments->take()) {
+        const auto [caption, jids] = encodeMentions(file.caption.trimmed(), mentions);
+        sendMessage(u"messages.sendMedia"_s, {{u"path"_s, file.path}, {u"caption"_s, caption}, {u"mentions"_s, jids}},
                     file.temporary ? file.path : QString());
+    }
 }
 
 void ConversationController::sendSticker(const QString &id)
@@ -521,6 +530,34 @@ void ConversationController::act(const QString &method, QJsonObject params, cons
 void ConversationController::react(const QString &id, const QString &emoji)
 {
     act(u"messages.react"_s, {{u"id"_s, id}, {u"emoji"_s, emoji}}, u"Reaction not sent"_s);
+}
+
+bool ConversationController::canEdit(const QString &id) const
+{
+    const MessageModel::Msg *m = m_model->find(id);
+    return m && m->fromMe && !m->deleted && m->type == "text"_L1 && !m_readOnly
+        && m->status != "pending"_L1 && m->status != "error"_L1
+        && QDateTime::currentSecsSinceEpoch() - m->timestamp < 15 * 60;
+}
+
+QString ConversationController::editableText(const QString &id) const
+{
+    const MessageModel::Msg *m = m_model->find(id);
+    return m ? Format::mentionNames(m->text, m->mentions) : QString();
+}
+
+void ConversationController::edit(const QString &id, const QString &text)
+{
+    const MessageModel::Msg *m = m_model->find(id);
+    const QString typed = text.trimmed();
+    if (!m || typed.isEmpty() || typed == editableText(id))
+        return;
+    // Keep the mentions whose "@Name" is still in the text.
+    QVariantMap names;
+    for (const Format::Mention &mention : m->mentions)
+        names.insert(mention.name, mention.jid);
+    const auto [body, jids] = encodeMentions(typed, names);
+    act(u"messages.edit"_s, {{u"id"_s, id}, {u"text"_s, body}, {u"mentions"_s, jids}}, u"Not edited"_s);
 }
 
 void ConversationController::deleteForEveryone(const QString &id)

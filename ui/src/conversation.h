@@ -64,7 +64,7 @@ public:
     Q_INVOKABLE void send(const QString &text, const QVariantMap &mentions = {});
     Q_INVOKABLE void stageFiles(const QStringList &files, const QString &caption = {});
     Q_INVOKABLE bool stageClipboardImage(const QString &caption = {});
-    Q_INVOKABLE void sendAttachments();
+    Q_INVOKABLE void sendAttachments(const QVariantMap &mentions = {});
     // id from the daemon's stickers.list.
     Q_INVOKABLE void sendSticker(const QString &id);
     Q_INVOKABLE void startReply(const QString &id);
@@ -76,6 +76,11 @@ public:
     Q_INVOKABLE void copyImage(const QString &id);
     // emoji "" removes our reaction.
     Q_INVOKABLE void react(const QString &id, const QString &emoji);
+    // Editing: our sent text messages, within WhatsApp's 15 minutes.
+    Q_INVOKABLE bool canEdit(const QString &id) const;
+    // The message's text as typed, with "@Name" for mentions.
+    Q_INVOKABLE QString editableText(const QString &id) const;
+    Q_INVOKABLE void edit(const QString &id, const QString &text);
     Q_INVOKABLE void deleteForEveryone(const QString &id);
     Q_INVOKABLE void deleteForMe(const QString &id);
 

@@ -30,11 +30,17 @@ ICONDIR := $(DESTDIR)$(PREFIX)/share/icons/hicolor
 DATADIR := $(DESTDIR)$(PREFIX)/share/wisp
 UNITDIR := $(DESTDIR)$(PREFIX)/share/systemd/user
 WHATSAPP := $(ROOT)/build/whatsapp
+# A git worktree uses the main checkout's asset cache when it has none of its own.
+ifeq ($(wildcard $(WHATSAPP)),)
+MAIN_WHATSAPP := $(abspath $(shell git rev-parse --git-common-dir 2>/dev/null)/../build/whatsapp)
+WHATSAPP := $(if $(wildcard $(MAIN_WHATSAPP)),$(MAIN_WHATSAPP),$(WHATSAPP))
+endif
 
 # quiet-qml-import.cmake skips Qt's static QML import scan, which with a shared
 # Qt only prints "will not be linked" warnings.
 UI_CMAKE_FLAGS := -G Ninja -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) -Wno-dev \
-	-DCMAKE_PROJECT_INCLUDE=$(ROOT)/scripts/cmake/quiet-qml-import.cmake
+	-DCMAKE_PROJECT_INCLUDE=$(ROOT)/scripts/cmake/quiet-qml-import.cmake \
+	-DWISP_ASSET_CACHE=$(WHATSAPP)
 
 .PHONY: all build daemon ui run run-mock check chaos test vet lint smoke perf install uninstall autostart no-autostart clean
 

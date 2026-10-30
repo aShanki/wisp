@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Dispatch decodes params for method and calls the matching Backend method.
@@ -185,6 +186,15 @@ var handlers = map[string]handler{
 			return err
 		}
 		return b.MessagesReact(ctx, p)
+	}),
+	MMessagesEdit: withOK(func(b Backend, ctx context.Context, p EditParams) error {
+		if err := requireRef(p.Chat, p.ID); err != nil {
+			return err
+		}
+		if strings.TrimSpace(p.Text) == "" {
+			return InvalidParams("text is required")
+		}
+		return b.MessagesEdit(ctx, p)
 	}),
 	MMessagesRevoke: withOK(func(b Backend, ctx context.Context, p MessageRefParams) error {
 		if err := requireRef(p.Chat, p.ID); err != nil {

@@ -68,6 +68,13 @@ if(APPLE)
     MACOSX_BUNDLE_BUNDLE_NAME Wisp
     MACOSX_BUNDLE_GUI_IDENTIFIER io.github.aShanki.wisp
     MACOSX_BUNDLE_INFO_PLIST "${CMAKE_CURRENT_SOURCE_DIR}/../packaging/Info.plist")
+  # Wisp's own icon, unless the local asset cache has a Wisp.icns.
+  set(WISP_ICON "${CMAKE_CURRENT_SOURCE_DIR}/../packaging/Wisp.icns")
+  if(WISP_ASSET_CACHE AND EXISTS "${WISP_ASSET_CACHE}/Wisp.icns")
+    set(WISP_ICON "${WISP_ASSET_CACHE}/Wisp.icns")
+  endif()
+  set_source_files_properties("${WISP_ICON}" PROPERTIES MACOSX_PACKAGE_LOCATION Resources)
+  target_sources(wisp PRIVATE "${WISP_ICON}")
 endif()
 install(TARGETS wisp RUNTIME DESTINATION bin BUNDLE DESTINATION .)
 

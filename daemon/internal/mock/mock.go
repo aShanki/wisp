@@ -527,6 +527,16 @@ func (b *Backend) MessagesReact(ctx context.Context, p api.ReactParams) error {
 	})
 }
 
+func (b *Backend) MessagesEdit(ctx context.Context, p api.EditParams) error {
+	return b.change(p.Chat, p.ID, func(m *api.Message) error {
+		if !m.FromMe || m.Deleted || m.Type != api.MsgText {
+			return fmt.Errorf("only your own text messages can be edited: %w", api.ErrUnsupported)
+		}
+		m.Text, m.Edited, m.Mentions = p.Text, true, mockMentions(p.Mentions)
+		return nil
+	})
+}
+
 func (b *Backend) MessagesRevoke(ctx context.Context, p api.MessageRefParams) error {
 	return b.change(p.Chat, p.ID, func(m *api.Message) error {
 		if !m.FromMe {
@@ -565,17 +575,22 @@ func (b *Backend) MessagesDeleteForMe(ctx context.Context, p api.MessageRefParam
 }
 
 func (b *Backend) MessagesSend(ctx context.Context, p api.SendParams) (*api.Message, error) {
-	m := &api.Message{Type: api.MsgText, Text: p.Text, Mentions: []api.Mention{}}
-	for _, j := range p.Mentions {
-		if j != "" && !slices.ContainsFunc(m.Mentions, func(mn api.Mention) bool { return mn.JID == j }) {
-			m.Mentions = append(m.Mentions, api.Mention{JID: j, Name: nameOf(j), Me: j == selfJID})
-		}
-	}
+	m := &api.Message{Type: api.MsgText, Text: p.Text, Mentions: mockMentions(p.Mentions)}
 	return b.send(p.Chat, p.ReplyTo, m)
 }
 
+func mockMentions(jids []string) []api.Mention {
+	out := []api.Mention{}
+	for _, j := range jids {
+		if j != "" && !slices.ContainsFunc(out, func(mn api.Mention) bool { return mn.JID == j }) {
+			out = append(out, api.Mention{JID: j, Name: nameOf(j), Me: j == selfJID})
+		}
+	}
+	return out
+}
+
 func (b *Backend) MessagesSendMedia(ctx context.Context, p api.SendMediaParams) (*api.Message, error) {
-	m := &api.Message{Type: api.MsgDocument, Text: p.Caption}
+	m := &api.Message{Type: api.MsgDocument, Text: p.Caption, Mentions: mockMentions(p.Mentions)}
 	f, err := os.Open(p.Path)
 	if err != nil {
 		return nil, api.InvalidParams("%v", err)

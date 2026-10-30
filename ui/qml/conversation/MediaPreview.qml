@@ -8,7 +8,11 @@ FocusScope {
     objectName: "mediaPreview"
     property int currentIndex: 0
     property var current: ({})
-    property bool restoring: false
+    // Caption edits aren't saved until select() fills the field: setting up
+    // the mention highlighter reports the empty field as changed.
+    property bool restoring: true
+    // The members chosen in the mention picker for any caption: {name: jid}.
+    property var mentions: ({})
     signal sent()
     signal addRequested()
 
@@ -25,7 +29,7 @@ FocusScope {
     }
     function send() {
         sent()
-        Conversation.sendAttachments()
+        Conversation.sendAttachments(mentions)
     }
 
     Component.onCompleted: select(0)
@@ -129,7 +133,7 @@ FocusScope {
                 padding: 14
                 background: null
                 onTextChanged: if (!root.restoring) Conversation.attachments.setCaption(root.currentIndex, text)
-                Keys.forwardTo: [suggest]
+                Keys.forwardTo: [suggest, mentionPicker]
                 Keys.onPressed: event => {
                     if ((event.key === Qt.Key_Return || event.key === Qt.Key_Enter)
                             && !(event.modifiers & Qt.ShiftModifier) && !inputMethodComposing) {
@@ -149,6 +153,24 @@ FocusScope {
                 }
             }
         }
+    }
+
+    MentionPicker {
+        id: mentionPicker
+        objectName: "captionMentionPicker"
+        input: caption
+        x: captionField.x
+        width: captionField.width
+        anchors.bottom: captionField.top
+        anchors.bottomMargin: 8
+        maxHeight: stage.height
+        onChosen: (jid, name) => root.mentions = Object.assign({}, root.mentions, {[name]: jid})
+    }
+
+    MentionHighlighter {
+        textDocument: caption.textDocument
+        names: Object.keys(root.mentions)
+        color: Theme.link
     }
 
     EmojiSuggest {

@@ -438,11 +438,15 @@ func TestGroupsMembers(t *testing.T) {
 func TestSendMedia(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)
-	m, err := h.c.MessagesSendMedia(ctx, api.SendMediaParams{Chat: alice, Path: "/tmp/x.jpg", Caption: "look"})
+	m, err := h.c.MessagesSendMedia(ctx, api.SendMediaParams{Chat: alice, Path: "/tmp/x.jpg",
+		Caption: "look @61400000001", Mentions: []string{alice, alice}})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.Type != api.MsgImage || m.Media == nil || m.Media.Path == "" || !m.Media.HasThumb || m.Text != "look" {
+	if len(m.Mentions) != 1 || m.Mentions[0].JID != alice {
+		t.Errorf("caption mentions = %+v", m.Mentions)
+	}
+	if m.Type != api.MsgImage || m.Media == nil || m.Media.Path == "" || !m.Media.HasThumb || m.Text != "look @61400000001" {
 		t.Fatalf("pending = %+v media=%+v", m, m.Media)
 	}
 	h.ev.waitFor(t, "media sent", func(e event) bool {
@@ -1084,5 +1088,36 @@ func TestUploadCompletionKeepsRemoteDeletion(t *testing.T) {
 	h.c.finishSend(m, &api.MediaRef{}, nil)
 	if _, err := h.st.GetMessage(ctx, alice, m.ID); !errors.Is(err, api.ErrNotFound) {
 		t.Fatalf("upload completion restored deleted message: %v", err)
+	}
+}
+
+func TestEdit(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	in := incoming(alice, "IN1", alice, "hello")
+	h.c.handle(api.EvMessage{Msg: in})
+	mine, _ := h.c.MessagesSend(ctx, api.SendParams{Chat: alice, Text: "hi"})
+	h.ev.waitFor(t, "sent", func(e event) bool {
+		ce, ok := e.params.(api.ChatEvent)
+		return ok && ce.Chat.LastMessage.Status == api.StatusSent
+	})
+	h.ev.reset()
+
+	if err := h.c.MessagesEdit(ctx, api.EditParams{Chat: alice, ID: in.ID, Text: "x"}); !errors.Is(err, api.ErrUnsupported) {
+		t.Errorf("editing their message: err = %v", err)
+	}
+	if err := h.c.MessagesEdit(ctx, api.EditParams{Chat: alice, ID: mine.ID, Text: "hi @61400000001", Mentions: []string{alice}}); err != nil {
+		t.Fatal(err)
+	}
+	ev := h.ev.waitFor(t, "edit", func(e event) bool { return e.name == api.EMessageUpdate })
+	if m := ev.params.(api.MessageEvent).Message; !m.Edited || m.Text != "hi @61400000001" || len(m.Mentions) != 1 {
+		t.Errorf("edited = %+v", m)
+	}
+	h.ev.reset()
+	if err := h.c.MessagesRevoke(ctx, api.MessageRefParams{Chat: alice, ID: mine.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.c.MessagesEdit(ctx, api.EditParams{Chat: alice, ID: mine.ID, Text: "y"}); !errors.Is(err, api.ErrUnsupported) {
+		t.Errorf("editing a deleted message: err = %v", err)
 	}
 }
