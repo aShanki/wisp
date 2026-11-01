@@ -19,7 +19,7 @@ a desktop with a notification server, a StatusNotifierItem tray and PipeWire.
         qml6-module-qtquick-controls qml6-module-qtquick-dialogs qml6-module-qtmultimedia \
         qml6-module-qtquick-layouts qml6-module-qtquick-templates \
         qml6-module-qtquick-window qml6-module-qtcore \
-        qml6-module-qtqml-workerscript pipewire-pulse curl jq ffmpeg fonts-liberation
+        qml6-module-qtqml-workerscript curl jq ffmpeg fonts-liberation
 
 Then:
 
@@ -46,7 +46,7 @@ Set `WISP_GPU=1` to render the window on the GPU instead of in software.
 ## License
 
 MIT. Vendored and third-party material keeps its own licence:
-`daemon/third_party/meowcaller` (MIT), `ui/src/3rdparty` (qrcodegen, MIT),
+`ui/src/3rdparty` (qrcodegen, MIT),
 `ui/assets/icons` (Material Symbols, Apache-2.0) and `ui/assets/emoji` (gemoji, MIT).
 
 ## Updates and manual releases

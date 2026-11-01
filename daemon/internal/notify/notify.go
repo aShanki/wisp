@@ -39,7 +39,6 @@ const (
 	actDefault  = "default"
 	actReply    = "inline-reply"
 	actMarkRead = "mark-read"
-	actDecline  = "decline"
 
 	// NotificationClosed reasons.
 	closedExpired = 1
@@ -80,8 +79,7 @@ type Notifier struct {
 	actions  api.NotifyActions
 	byChat   map[string]*entry
 	byID     map[uint32]*entry
-	calls    map[string]*entry // ringing calls by call id
-	token    string            // last xdg-activation token from the server
+	token    string // last xdg-activation token from the server
 	played   time.Time
 }
 
@@ -91,7 +89,6 @@ type entry struct {
 	id    uint32 // 0 = not currently shown
 	msgID string // newest message notified
 	count int    // messages since the user last dealt with this chat
-	call  string // the call ringing, for a call notification
 }
 
 var _ api.Notifier = (*Notifier)(nil)
@@ -115,7 +112,6 @@ func New(cfg Config) *Notifier {
 		exec:   cfg.Exec,
 		byChat: make(map[string]*entry),
 		byID:   make(map[uint32]*entry),
-		calls:  make(map[string]*entry),
 	}
 	n.log.Debug("notification sound", "file", n.sound)
 	if n.addr == "" {
@@ -286,59 +282,6 @@ func findSound() string {
 	return ""
 }
 
-// NotifyCall shows a ringing call until ClearCall: resident, critical, with
-// Decline. Clicking it opens the chat.
-func (n *Notifier) NotifyCall(ctx context.Context, c api.CallNotification) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if n.closed {
-		return nil
-	}
-	conn := n.connLocked()
-	if conn == nil {
-		return nil
-	}
-	cctx, cancel := context.WithTimeout(ctx, callTimeout)
-	defer cancel()
-	kind := "Voice call"
-	if c.Video {
-		kind = "Video call"
-	}
-	if c.Group {
-		kind = "Group " + strings.ToLower(kind)
-	}
-	hints := map[string]dbus.Variant{
-		"desktop-entry": dbus.MakeVariant("wisp"),
-		"category":      dbus.MakeVariant("call.incoming"),
-		"urgency":       dbus.MakeVariant(byte(2)),
-		"resident":      dbus.MakeVariant(true),
-		"image-path":    dbus.MakeVariant(imagePath(c.Avatar)),
-	}
-	actions := []string{actDefault, "Open", actDecline, "Decline"}
-	var id uint32
-	err := conn.Object(busName, objPath).CallWithContext(cctx, iface+".Notify", 0,
-		appName, uint32(0), appIcon, truncate(c.Name, maxTitleRunes), kind, actions, hints, int32(0)).Store(&id)
-	if err != nil {
-		if !conn.Connected() {
-			n.dropConnLocked(conn)
-		}
-		return fmt.Errorf("notify call: %w", err)
-	}
-	e := &entry{chat: c.Chat, id: id, call: c.ID}
-	n.calls[c.ID] = e
-	n.byID[id] = e
-	return nil
-}
-
-// ClearCall closes the notification of a call that stopped ringing.
-func (n *Notifier) ClearCall(id string) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if e := n.calls[id]; e != nil {
-		n.forgetLocked(e, true)
-	}
-}
-
 // Clear closes the notification shown for chat (if any) and resets its
 // message count.
 func (n *Notifier) Clear(chat string) {
@@ -368,7 +311,6 @@ func (n *Notifier) clearAllLocked() {
 	}
 	clear(n.byID)
 	clear(n.byChat)
-	clear(n.calls)
 }
 
 // Close closes all shown notifications (their actions would be dead) and
@@ -573,13 +515,6 @@ func (n *Notifier) handleSignal(conn *dbus.Conn, sig *dbus.Signal) {
 			return
 		}
 		switch key {
-		case actDecline:
-			n.forgetLocked(e, true)
-			n.callLocked(func(a api.NotifyActions) {
-				if a.Decline != nil && e.call != "" {
-					a.Decline(e.call)
-				}
-			})
 		case actMarkRead:
 			n.forgetLocked(e, true)
 			n.callLocked(func(a api.NotifyActions) {
@@ -626,9 +561,6 @@ func (n *Notifier) handleSignal(conn *dbus.Conn, sig *dbus.Signal) {
 		}
 		delete(n.byID, id)
 		e.id = 0
-		if n.calls[e.call] == e {
-			delete(n.calls, e.call)
-		}
 		// Expired popups may not have been seen: keep counting so the next
 		// one says "N new messages". Dismissed/closed: start over.
 		if reason != closedExpired && n.byChat[e.chat] == e {
@@ -645,9 +577,6 @@ func (n *Notifier) handleSignal(conn *dbus.Conn, sig *dbus.Signal) {
 func (n *Notifier) forgetLocked(e *entry, closeIt bool) {
 	if n.byChat[e.chat] == e {
 		delete(n.byChat, e.chat)
-	}
-	if n.calls[e.call] == e {
-		delete(n.calls, e.call)
 	}
 	if e.id != 0 {
 		delete(n.byID, e.id)

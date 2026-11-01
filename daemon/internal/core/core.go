@@ -86,8 +86,6 @@ type Core struct {
 	histChats map[string]struct{}
 	histMsgs  int
 
-	calls map[string]*call // calls in progress, guarded by writeMu
-
 	startOnce sync.Once
 	closeOnce sync.Once
 	done      chan struct{}
@@ -134,7 +132,6 @@ func (c *Core) Start(ctx context.Context) {
 			Open:     c.onNotifyOpen,
 			Reply:    c.onNotifyReply,
 			MarkRead: c.onNotifyMarkRead,
-			Decline:  c.onNotifyDecline,
 		})
 		c.media.SetCap(c.cacheBytes(ctx))
 		c.wa.SetEventHandler(c.enqueue)
@@ -208,7 +205,6 @@ func (c *Core) Hello(ctx context.Context, p api.HelloParams) (*api.HelloResult, 
 		Conn:     c.wa.ConnState(),
 		SelfJID:  c.wa.SelfJID(),
 		SelfName: c.wa.SelfName(),
-		Calls:    c.wa.CallsAvailable(),
 	}, nil
 }
 
@@ -269,7 +265,6 @@ func (c *Core) wipe(ctx context.Context) {
 		c.log.Error("core: wiping the media cache failed", "err", err)
 	}
 	c.histChats, c.histMsgs = map[string]struct{}{}, 0
-	clear(c.calls)
 	c.unsentMu.Lock()
 	c.unsent = nil
 	c.unsentMu.Unlock()

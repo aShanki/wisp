@@ -14,7 +14,6 @@ const (
 	EHistorySyncProgress = "historySync.progress"
 	EUIOpenChat          = "ui.openChat"
 	EUIQuit              = "ui.quit"
-	ECallState           = "call.state"
 	EMediaProgress       = "media.progress"
 )
 
@@ -79,40 +78,6 @@ type OpenChatEvent struct {
 	Chat  string `json:"chat"`            // "" = just raise the window
 	Token string `json:"token,omitempty"` // xdg-activation token for the window
 }
-
-type CallStateEvent struct {
-	CallID    string `json:"callId"`
-	Chat      string `json:"chat"` // the other side, or the group
-	From      string `json:"from"` // who started the call
-	Name      string `json:"name"` // the other side's name
-	Incoming  bool   `json:"incoming"`
-	Video     bool   `json:"video"`
-	Group     bool   `json:"group"`
-	State     string `json:"state"` // Call* state
-	Since     int64  `json:"since"` // unix seconds the state began
-	Muted     bool   `json:"muted"`
-	PeerMuted bool   `json:"peerMuted"`
-	Reason    string `json:"reason"` // why it ended
-}
-
-// call.state states.
-const (
-	CallRinging    = "ringing"
-	CallConnecting = "connecting"
-	CallActive     = "active"
-	CallEnded      = "ended"
-)
-
-// call.state reasons, once ended.
-const (
-	CallMissed     = "missed"     // incoming: the caller gave up, or it rang out
-	CallDeclined   = "declined"   // incoming: declined here or on another of our devices
-	CallAnswered   = "answered"   // incoming: answered on another of our devices
-	CallRejected   = "rejected"   // outgoing: the other side declined
-	CallUnanswered = "unanswered" // outgoing: nobody answered
-	CallHungUp     = "hungup"     // either side hung up after answering
-	CallFailed     = "failed"     // signalling or media failed
-)
 
 // WAEvent is implemented by every event the WA layer hands to core (not on
 // the wire).
@@ -236,25 +201,6 @@ type EvFavoriteSticker struct {
 	Ref      MediaRef
 }
 
-// EvCallOffer: an incoming call is ringing.
-type EvCallOffer struct {
-	ID    string
-	Chat  string
-	From  string
-	Video bool
-	Group bool
-	Ts    int64
-}
-
-// EvCallState: a call moved on. State is a Call* state, Reason a Call* reason
-// once ended.
-type EvCallState struct {
-	ID        string
-	State     string
-	Reason    string
-	PeerMuted bool
-}
-
 func (EvQR) isWAEvent()              {}
 func (EvPaired) isWAEvent()          {}
 func (EvLoggedOut) isWAEvent()       {}
@@ -273,5 +219,3 @@ func (EvTyping) isWAEvent()          {}
 func (EvAvatarChanged) isWAEvent()   {}
 func (EvMediaPath) isWAEvent()       {}
 func (EvFavoriteSticker) isWAEvent() {}
-func (EvCallOffer) isWAEvent()       {}
-func (EvCallState) isWAEvent()       {}

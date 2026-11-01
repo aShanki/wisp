@@ -11,7 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/purpshell/meowcaller"
 	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/proto/waCompanionReg"
 	"go.mau.fi/whatsmeow/store"
@@ -21,7 +20,6 @@ import (
 	_ "modernc.org/sqlite"
 
 	"wisp/daemon/internal/api"
-	"wisp/daemon/internal/audio"
 )
 
 // Config configures the WhatsApp client.
@@ -41,7 +39,6 @@ type Client struct {
 
 	mu            sync.Mutex
 	cli           *whatsmeow.Client
-	mcaller       *meowcaller.Client // calls on cli
 	auth          string
 	conn          string
 	qrCancel      context.CancelFunc
@@ -57,14 +54,6 @@ type Client struct {
 	groupMu  sync.Mutex
 	groupGen uint64                         // bumped by every change seen, so a fetch racing one isn't cached
 	groups   map[types.JID]*types.GroupInfo // groupInfo cache
-
-	callMu sync.Mutex
-	calls  map[string]types.JID // ringing incoming calls: the creator as addressed
-	live   map[string]*live     // calls meowcaller carries
-
-	toneMu sync.Mutex
-	tone   *audio.Ringer // the ringing or ringback tone, while one plays
-	toneID string
 }
 
 var _ api.WA = (*Client)(nil)
@@ -119,11 +108,9 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	return c, nil
 }
 
-// newWAClient makes a whatsmeow client and its caller. c.mu must be held once
-// c is shared.
+// newWAClient makes a whatsmeow client. c.mu must be held once c is shared.
 func (c *Client) newWAClient(dev *store.Device) *whatsmeow.Client {
 	cli := whatsmeow.NewClient(dev, newWALog(c.log, "client"))
-	c.mcaller = c.newCaller(cli)
 	cli.EnableAutoReconnect = true
 	cli.InitialAutoReconnect = true
 	cli.EmitAppStateEventsOnFullSync = true

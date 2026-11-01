@@ -60,12 +60,6 @@ type Backend interface {
 
 	SettingsGet(ctx context.Context) (*SettingsGetResult, error)
 	SettingsSet(ctx context.Context, p SettingsSetParams) error
-
-	CallsStart(ctx context.Context, p ChatParams) (*CallStartResult, error)
-	CallsAccept(ctx context.Context, p CallParams) error
-	CallsReject(ctx context.Context, p CallParams) error
-	CallsEnd(ctx context.Context, p CallParams) error
-	CallsMute(ctx context.Context, p CallMuteParams) error
 }
 
 // Emitter broadcasts an event to every connected UI client. Implemented by
@@ -238,15 +232,6 @@ type WA interface {
 	// GroupMembers lists a group's participants other than us, canonical
 	// like senders. Names are left to the caller.
 	GroupMembers(ctx context.Context, chat string) ([]GroupMember, error)
-
-	// Calls: 1:1 voice only. StartCall returns once the offer is sent; progress
-	// arrives as EvCallState. RejectCall declines an incoming call still ringing.
-	CallsAvailable() bool
-	StartCall(ctx context.Context, chat string) (string, error)
-	AcceptCall(ctx context.Context, id string) error
-	RejectCall(ctx context.Context, id string) error
-	EndCall(ctx context.Context, id string) error
-	MuteCall(id string, muted bool) error
 }
 
 // NotifyActions are callbacks from notification buttons (set by core).
@@ -254,7 +239,6 @@ type NotifyActions struct {
 	Open     func(chat string)
 	Reply    func(chat, msgID, text string)
 	MarkRead func(chat string)
-	Decline  func(callID string)
 }
 
 // Notifier is implemented by internal/notify (freedesktop D-Bus).
@@ -265,9 +249,6 @@ type Notifier interface {
 	Notify(ctx context.Context, n Notification) error
 	// Clear closes any notification shown for chat.
 	Clear(chat string)
-	// NotifyCall shows a ringing call, with Decline, until ClearCall.
-	NotifyCall(ctx context.Context, c CallNotification) error
-	ClearCall(id string)
 	ClearAll() // e.g. on logout
 	Close() error
 }

@@ -4,24 +4,11 @@ go 1.26.8
 
 require (
 	github.com/godbus/dbus/v5 v5.2.4
-	github.com/jfreymuth/pulse v0.1.3
-	github.com/purpshell/meowcaller v0.0.0
 	go.mau.fi/whatsmeow v0.0.0-20261017175727-b2b1e71d45e2
 	golang.org/x/image v0.47.0
 	golang.org/x/sys v0.49.0
 	google.golang.org/protobuf v1.36.12
 	modernc.org/sqlite v1.61.0
-)
-
-require (
-	github.com/hajimehoshi/go-mp3 v0.3.4 // indirect
-	github.com/pion/datachannel v1.6.0 // indirect
-	github.com/pion/dtls/v3 v3.1.2 // indirect
-	github.com/pion/logging v0.2.4 // indirect
-	github.com/pion/opus v0.1.0 // indirect
-	github.com/pion/randutil v0.1.0 // indirect
-	github.com/pion/sctp v1.9.4 // indirect
-	github.com/pion/transport/v4 v4.0.1 // indirect
 )
 
 require (
@@ -49,5 +36,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.12.1 // indirect
 )
-
-replace github.com/purpshell/meowcaller => ./third_party/meowcaller

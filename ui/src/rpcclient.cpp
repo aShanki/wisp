@@ -188,7 +188,6 @@ void RpcClient::onHello(const QJsonObject &r)
     m_failed = false;
     m_backoffMs = 100;
     setAuthState(str(r, "auth"));
-    m_calls = r.value("calls"_L1).toBool();
     m_connectionState = str(r, "connection");
     emit connectionStateChanged();
     m_sentChat.clear();

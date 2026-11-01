@@ -45,7 +45,7 @@
         content.title = data[@"title"] ?: @"Wisp";
         content.body = data[@"body"] ?: @"";
         content.userInfo = data;
-        content.categoryIdentifier = data[@"call"] ? @"call" : @"message";
+        content.categoryIdentifier = @"message";
         content.sound = [UNNotificationSound soundNamed:@"notification.caf"];
         [center addNotificationRequest:[UNNotificationRequest requestWithIdentifier:data[@"id"]
             content:content trigger:nil] withCompletionHandler:^(NSError *error) {
@@ -72,8 +72,6 @@
             {"replyTo", QString::fromNSString(data[@"message"] ?: @"")}});
     } else if (action == "read") {
         self.rpc->call(QStringLiteral("chats.markRead"), QJsonObject{{"chat", chat}});
-    } else if (action == "decline") {
-        self.rpc->call(QStringLiteral("calls.reject"), QJsonObject{{"callId", QString::fromNSString(data[@"call"])}});
     } else {
         emit self.rpc->openChatRequested(chat);
         [self show];
@@ -125,10 +123,7 @@ void setupMacDesktop(QQuickWindow *window, RpcClient *rpc) {
         options:0 textInputButtonTitle:@"Send" textInputPlaceholder:@"Message"];
     UNNotificationCategory *message = [UNNotificationCategory categoryWithIdentifier:@"message"
         actions:@[reply, read] intentIdentifiers:@[] options:0];
-    UNNotificationAction *decline = [UNNotificationAction actionWithIdentifier:@"decline" title:@"Decline" options:0];
-    UNNotificationCategory *call = [UNNotificationCategory categoryWithIdentifier:@"call"
-        actions:@[decline] intentIdentifiers:@[] options:0];
-    [center setNotificationCategories:[NSSet setWithObjects:message, call, nil]];
+    [center setNotificationCategories:[NSSet setWithObject:message]];
     [center requestAuthorizationWithOptions:UNAuthorizationOptionAlert | UNAuthorizationOptionSound | UNAuthorizationOptionBadge
         completionHandler:^(BOOL, NSError *) {}];
     QObject::connect(rpc, &RpcClient::event, window, [](const QString &event, const QJsonObject &params) {

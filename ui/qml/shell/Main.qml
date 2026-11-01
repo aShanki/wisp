@@ -237,19 +237,6 @@ ApplicationWindow {
         }
     }
 
-    CallBar { // the call in progress, centred over the conversation
-        id: callBar
-        x: divider.x + 1 + Math.round((window.width - divider.x - 1 - width) / 2)
-        y: 12
-        visible: callId !== "" && window.linked
-    }
-
-    CallBanner { // a call ringing, under the call in progress if there is one
-        x: divider.x + 1 + Math.round((window.width - divider.x - 1 - width) / 2)
-        y: callBar.visible ? callBar.y + callBar.height + 8 : 12
-        visible: callId !== "" && window.linked
-    }
-
     Rectangle {
         id: toast
 

@@ -1,6 +1,6 @@
 // The open chat's header, as in WhatsApp: avatar, name and status on the
-// left; a voice-call button (1:1 chats, when the daemon offers calls) and the
-// menu on the right. Its shadow is drawn by ConversationView, over the messages.
+// left; the menu on the right. Its shadow is drawn by ConversationView, over
+// the messages.
 import QtQuick
 import Wisp
 
@@ -59,12 +59,6 @@ Rectangle {
         anchors.rightMargin: 16
         anchors.verticalCenter: parent.verticalCenter
         spacing: 16
-        IconButton {
-            visible: Daemon.callsAvailable && !Conversation.isGroup
-            name: "call"
-            color: Theme.text
-            onClicked: Daemon.call("calls.start", {chat: Conversation.jid})
-        }
         IconButton {
             id: menuButton
             objectName: "chatMenuButton"
