@@ -36,7 +36,6 @@ type fakeWA struct {
 	pins         []api.SetPinnedParams
 	acts         []string // "react <id> <emoji>", "revoke <id>", "deleteForMe <id>"
 	resyncs      int
-	rejected     []string
 	members      map[string][]api.GroupMember
 }
 
@@ -189,21 +188,6 @@ func (w *fakeWA) GroupMembers(ctx context.Context, chat string) ([]api.GroupMemb
 	return append([]api.GroupMember(nil), ms...), nil
 }
 
-func (w *fakeWA) RejectCall(ctx context.Context, id string) error {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	w.rejected = append(w.rejected, id)
-	return nil
-}
-
-func (w *fakeWA) CallsAvailable() bool { return true }
-func (w *fakeWA) StartCall(ctx context.Context, chat string) (string, error) {
-	return "OUT1", nil
-}
-func (w *fakeWA) AcceptCall(ctx context.Context, id string) error { return nil }
-func (w *fakeWA) EndCall(ctx context.Context, id string) error    { return nil }
-func (w *fakeWA) MuteCall(id string, muted bool) error            { return nil }
-
 type fakeMedia struct {
 	mu    sync.Mutex
 	dir   string
@@ -248,7 +232,6 @@ type fakeNotifier struct {
 	actions api.NotifyActions
 	shown   []api.Notification
 	cleared []string
-	calls   []api.CallNotification
 }
 
 var _ api.Notifier = (*fakeNotifier)(nil)
@@ -271,17 +254,6 @@ func (n *fakeNotifier) ClearAll() {
 	n.cleared = append(n.cleared, "*")
 }
 func (n *fakeNotifier) Close() error { return nil }
-func (n *fakeNotifier) NotifyCall(ctx context.Context, c api.CallNotification) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.calls = append(n.calls, c)
-	return nil
-}
-func (n *fakeNotifier) ClearCall(id string) {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	n.cleared = append(n.cleared, "call:"+id)
-}
 
 type event struct {
 	name   string

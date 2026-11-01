@@ -56,7 +56,7 @@ func (c *Core) handle(ev api.WAEvent) {
 
 	switch ev.(type) {
 	case api.EvMessage, api.EvHistory, api.EvReceipt, api.EvReaction, api.EvEdit, api.EvRevoke, api.EvDeleteForMe,
-		api.EvChatMeta, api.EvContacts, api.EvAvatarChanged, api.EvCallOffer, api.EvFavoriteSticker:
+		api.EvChatMeta, api.EvContacts, api.EvAvatarChanged, api.EvFavoriteSticker:
 		if !c.wa.IsLoggedIn() {
 			return // left over from a session that was logged out and wiped
 		}
@@ -138,10 +138,6 @@ func (c *Core) handle(ev api.WAEvent) {
 		if err := c.store.SetMediaDirectPath(ctx, e.Chat, e.ID, e.DirectPath); err != nil {
 			c.logErr("media path", err, "chat", e.Chat, "id", e.ID)
 		}
-	case api.EvCallOffer:
-		c.onCallOffer(ctx, e)
-	case api.EvCallState:
-		c.onCallState(ctx, e)
 	case api.EvPresence:
 		c.emitEv(api.EPresence, api.PresenceEvent{JID: e.JID, Online: e.Online, LastSeen: e.LastSeen})
 	case api.EvTyping:

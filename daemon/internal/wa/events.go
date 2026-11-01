@@ -250,8 +250,6 @@ func (c *Client) onEvent(cli *whatsmeow.Client, raw any) {
 	case *events.Picture:
 		cv := c.converterFor(cli)
 		c.emit(api.EvAvatarChanged{JID: cv.canon(v.JID).String()})
-	case *events.CallOffer, *events.CallOfferNotice, *events.CallTerminate, *events.CallReject, *events.CallAccept:
-		c.onCall(cli, raw)
 	case *events.MediaRetry:
 		c.retryMu.Lock()
 		if ch := c.retries[v.MessageID]; ch != nil {

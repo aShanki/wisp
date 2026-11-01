@@ -44,12 +44,6 @@ const (
 
 	MSettingsGet = "settings.get"
 	MSettingsSet = "settings.set"
-
-	MCallsStart  = "calls.start"
-	MCallsAccept = "calls.accept"
-	MCallsReject = "calls.reject"
-	MCallsEnd    = "calls.end"
-	MCallsMute   = "calls.mute"
 )
 
 type HelloParams struct {
@@ -66,7 +60,6 @@ type HelloResult struct {
 	Conn     string `json:"connection"` // current connection state
 	SelfJID  string `json:"selfJid"`
 	SelfName string `json:"selfName"`
-	Calls    bool   `json:"calls"` // voice calls can be placed and answered
 }
 
 type AuthStatusResult struct {
@@ -230,19 +223,6 @@ type SettingsGetResult struct {
 type SettingsSetParams struct {
 	Key   string `json:"key"`
 	Value any    `json:"value"`
-}
-
-type CallParams struct {
-	CallID string `json:"callId"`
-}
-
-type CallMuteParams struct {
-	CallID string `json:"callId"`
-	Muted  bool   `json:"muted"`
-}
-
-type CallStartResult struct {
-	CallID string `json:"callId"`
 }
 
 // OK is the result of methods that return nothing interesting.

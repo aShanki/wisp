@@ -31,7 +31,6 @@ func main() {
 		dataDir  = flag.String("data", defaultDataDir(), "data directory")
 		traffic  = flag.Duration("mock-traffic", 0, "mock: mean gap between incoming messages (0 = none)")
 		unpaired = flag.Bool("mock-unpaired", false, "mock: start unpaired and walk through the QR flow")
-		ringIn   = flag.Duration("mock-call", 0, "mock: ring an incoming call after this long (0 = none)")
 		verbose  = flag.Bool("v", false, "debug logging")
 		trayOn   = flag.Bool("tray", false, "mock: show the tray icon (always shown otherwise)")
 	)
@@ -73,7 +72,7 @@ func main() {
 		openUI  func(chat, token string)
 	)
 	if *mockMode {
-		m := mock.New(mock.Config{Seed: 1, Traffic: *traffic, Unpaired: *unpaired, Call: *ringIn, Log: log})
+		m := mock.New(mock.Config{Seed: 1, Traffic: *traffic, Unpaired: *unpaired, Log: log})
 		backend, done, closeFn = m, m.Done(), m.Close
 	} else {
 		if os.Getenv("GOMEMLIMIT") == "" {

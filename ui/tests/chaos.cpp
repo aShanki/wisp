@@ -1,7 +1,6 @@
 // A seeded chaos monkey: the real QML app offscreen at a random size against a
-// private wispd --mock with a flood of incoming messages and a ringing call,
-// driven by random clicks, keys, typing, pastes, scrolls, resizes, calls and
-// daemon restarts. Invariants are checked after every step, against the
+// private wispd --mock with a flood of incoming messages, driven by random
+// clicks, keys, typing, pastes, scrolls, resizes and daemon restarts. Invariants are checked after every step, against the
 // daemon every 50 steps, and for leaks and idle CPU at the end. A failure
 // saves a screenshot and the last 30 steps to build/chaos/<seed>/.
 //   SEED (default: random), STEPS (default 2000), WISP_BIN (default: bin/)
@@ -74,7 +73,7 @@ constexpr int kStepMs = 16;        // a frame after every step
 constexpr int kScreenshots = 3;    // per kind of failure
 constexpr int kPrinted = 10;       // failures printed per kind
 
-const QStringList kDaemonArgs{u"--mock-traffic"_s, u"300ms"_s, u"--mock-call"_s, u"25s"_s};
+const QStringList kDaemonArgs{u"--mock-traffic"_s, u"300ms"_s};
 
 // Warnings from Qt and QML, collected from any thread until the next check.
 QMutex g_lock;
@@ -306,7 +305,6 @@ private:
     void wheelChats() { wheel(chatView()); }
     void wheel(QQuickItem *view);
     void resize();
-    void call();
     void restartDaemon();
 
     // The checks.
@@ -525,9 +523,6 @@ QList<QQuickItem *> Chaos::floating()
         if (QQuickItem *list = findView(root(), m_emoji))
             m_suggest = list->parentItem();
     QList<QQuickItem *> items{m_suggest, named(root(), u"mediaPreview"_s), named(root(), u"mentionPicker"_s), m_window->findChild<QQuickItem *>(u"chevron"_s)};
-    for (const char *part : {"callDecline", "callEnd"})
-        if (QQuickItem *button = named(root(), QString::fromLatin1(part)))
-            items << button->parentItem();
     items.removeAll(nullptr);
     return items;
 }
@@ -710,8 +705,6 @@ bool Chaos::setUp()
 QList<Chaos::Action> Chaos::actions()
 {
     const bool chat = !m_conv->jid().isEmpty() && shown(messageView());
-    const bool ringing = shown(named(root(), u"callDecline"_s));
-    const bool calling = shown(named(root(), u"callEnd"_s));
     return {
         {"click", 48, &Chaos::clickPoint},
         {"click-row", 36, &Chaos::clickRow},
@@ -735,7 +728,6 @@ QList<Chaos::Action> Chaos::actions()
         {"wheel-messages", chat ? 24 : 0, &Chaos::wheelMessages},
         {"wheel-chats", 16, &Chaos::wheelChats},
         {"resize", 10, &Chaos::resize},
-        {"call", ringing ? 80 : calling ? 8 : 0, &Chaos::call},
         {"restart-wispd", m_step > 20 ? 1 : 0, &Chaos::restartDaemon},
     };
 }
@@ -804,11 +796,7 @@ qint64 Chaos::measureRss()
 void Chaos::finish()
 {
     m_action = u"end"_s;
-    note(u"hang up, pause wispd, 5 s quiet"_s);
-    for (const char *button : {"callEnd", "callDecline"})
-        if (QQuickItem *item = named(root(), QString::fromLatin1(button)); shown(item))
-            click(sceneRect(item).center());
-    waitFor([this] { return !shown(named(root(), u"callEnd"_s)) && !shown(named(root(), u"callDecline"_s)); }, 3000);
+    note(u"pause wispd, 5 s quiet"_s);
     takeWarnings();
 
     const qint64 rss = measureRss();
@@ -1192,31 +1180,6 @@ void Chaos::resize()
     const QSize size = chance(15) ? min : QSize(between(min.width(), 1920), between(min.height(), 1200));
     note(u"%1x%2"_s.arg(size.width()).arg(size.height()));
     m_window->resize(size);
-}
-
-void Chaos::call()
-{
-    QQuickItem *accept = named(root(), u"callAccept"_s), *decline = named(root(), u"callDecline"_s);
-    if (shown(decline)) {
-        const bool yes = shown(accept) && chance(50);
-        note(yes ? u"accept"_s : u"decline"_s);
-        click(sceneRect(yes ? accept : decline).center());
-        return;
-    }
-    QQuickItem *end = named(root(), u"callEnd"_s), *mute = named(root(), u"callMute"_s);
-    if (!shown(end))
-        return;
-    const int what = below(3);
-    if (what == 0 && shown(mute)) {
-        note(u"mute"_s);
-        click(sceneRect(mute).center());
-    } else if (what == 1) {
-        note(u"open the chat"_s);
-        click(sceneRect(end->parentItem()).topLeft() + QPointF(24, 28));
-    } else {
-        note(u"end"_s);
-        click(sceneRect(end).center());
-    }
 }
 
 void Chaos::restartDaemon()

@@ -10,6 +10,5 @@
 <key>CFBundleVersion</key><string>${PROJECT_VERSION}</string>
 <key>CFBundleIconFile</key><string>Wisp.icns</string>
 <key>NSHighResolutionCapable</key><true/>
-<key>NSMicrophoneUsageDescription</key><string>Wisp uses your microphone during WhatsApp voice calls.</string>
 <key>LSMinimumSystemVersion</key><string>13.0</string>
 </dict></plist>

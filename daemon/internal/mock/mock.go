@@ -28,7 +28,6 @@ type Config struct {
 	Seed     int64
 	Traffic  time.Duration // mean gap between incoming messages; 0 = none
 	Unpaired bool          // start unpaired and walk through the QR flow
-	Call     time.Duration // ring an incoming call this long after start; 0 = none
 	Log      *slog.Logger
 }
 
@@ -42,7 +41,6 @@ type Backend struct {
 	auth     string
 	pairing  *time.Timer
 	active   map[int64]api.UISetActiveParams
-	calls    map[string]*mockCall
 	settings map[string]any
 	seq      int
 	closed   bool
@@ -79,7 +77,6 @@ func New(cfg Config) *Backend {
 		chats:   map[string]*chat{},
 		auth:    api.AuthPaired,
 		active:  map[int64]api.UISetActiveParams{},
-		calls:   map[string]*mockCall{},
 		settings: map[string]any{
 			api.SettingNotifications: true,
 			api.SettingNotifyPreview: true,
@@ -113,9 +110,6 @@ func New(cfg Config) *Backend {
 	}
 	if cfg.Traffic > 0 {
 		b.after(cfg.Traffic, b.incomingTraffic)
-	}
-	if cfg.Call > 0 {
-		b.after(cfg.Call, b.ring)
 	}
 	return b
 }
@@ -179,7 +173,7 @@ func (b *Backend) Hello(ctx context.Context, p api.HelloParams) (*api.HelloResul
 	defer b.mu.Unlock()
 	jid, name := b.self()
 	return &api.HelloResult{Protocol: api.ProtocolVersion, Version: "mock", Mock: true,
-		Auth: b.auth, Conn: b.connState(), SelfJID: jid, SelfName: name, Calls: true}, nil
+		Auth: b.auth, Conn: b.connState(), SelfJID: jid, SelfName: name}, nil
 }
 
 func (b *Backend) Shutdown(ctx context.Context) error {

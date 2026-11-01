@@ -274,15 +274,6 @@ type Notification struct {
 	Avatar   string // local image path, may be ""
 }
 
-type CallNotification struct {
-	ID     string
-	Chat   string
-	Name   string
-	Video  bool
-	Group  bool
-	Avatar string
-}
-
 // Settings keys (settings.get / settings.set).
 const (
 	SettingNotifications = "notifications.enabled" // bool, default true

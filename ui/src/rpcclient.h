@@ -27,7 +27,6 @@ class RpcClient : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(bool connected READ isConnected NOTIFY connectedChanged)
-    Q_PROPERTY(bool callsAvailable READ callsAvailable NOTIFY connectedChanged)
     Q_PROPERTY(QString authState READ authState NOTIFY authStateChanged)
     Q_PROPERTY(QString connectionState READ connectionState NOTIFY connectionStateChanged)
     Q_PROPERTY(QString qrCode READ qrCode NOTIFY qrCodeChanged)
@@ -64,7 +63,6 @@ public:
 
     qint64 daemonPid() const { return m_daemonPid; }
     bool isConnected() const { return m_connected; }
-    bool callsAvailable() const { return m_connected && m_calls; }
     QString authState() const { return m_authState; }
     QString connectionState() const { return m_connectionState; }
     QString qrCode() const { return m_qrCode; }
@@ -127,7 +125,6 @@ private:
     QJSEngine *m_js = nullptr;
 
     bool m_connected = false;
-    bool m_calls = false; // daemon.hello: calls can be made
     QString m_authState = QStringLiteral("unknown");
     QString m_connectionState = QStringLiteral("disconnected");
     QString m_qrCode;

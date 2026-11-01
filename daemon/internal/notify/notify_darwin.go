@@ -51,20 +51,11 @@ func (n *Notifier) Notify(_ context.Context, m api.Notification) error {
 	post(map[string]any{"action": "show", "id": m.Chat, "chat": m.Chat, "message": m.MsgID, "title": title, "body": body})
 	return nil
 }
-func (n *Notifier) NotifyCall(_ context.Context, c api.CallNotification) error {
-	n.mu.Lock()
-	defer n.mu.Unlock()
-	if !n.closed {
-		post(map[string]any{"action": "show", "id": "call-" + c.ID, "chat": c.Chat, "call": c.ID, "title": c.Name, "body": "Incoming call"})
-	}
-	return nil
-}
 func (n *Notifier) Clear(chat string) {
 	n.mu.Lock()
 	defer n.mu.Unlock()
 	post(map[string]any{"action": "clear", "id": chat})
 }
-func (n *Notifier) ClearCall(id string) { post(map[string]any{"action": "clear", "id": "call-" + id}) }
 func (n *Notifier) ClearAll() {
 	n.mu.Lock()
 	defer n.mu.Unlock()

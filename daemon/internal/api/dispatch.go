@@ -245,29 +245,4 @@ var handlers = map[string]handler{
 
 	MSettingsGet: noParams(Backend.SettingsGet),
 	MSettingsSet: withOK(Backend.SettingsSet),
-
-	MCallsStart: with(func(b Backend, ctx context.Context, p ChatParams) (*CallStartResult, error) {
-		if p.Chat == "" {
-			return nil, InvalidParams("chat is required")
-		}
-		return b.CallsStart(ctx, p)
-	}),
-	MCallsAccept: withOK(callID(Backend.CallsAccept)),
-	MCallsReject: withOK(callID(Backend.CallsReject)),
-	MCallsEnd:    withOK(callID(Backend.CallsEnd)),
-	MCallsMute: withOK(func(b Backend, ctx context.Context, p CallMuteParams) error {
-		if p.CallID == "" {
-			return InvalidParams("callId is required")
-		}
-		return b.CallsMute(ctx, p)
-	}),
-}
-
-func callID(f func(Backend, context.Context, CallParams) error) func(Backend, context.Context, CallParams) error {
-	return func(b Backend, ctx context.Context, p CallParams) error {
-		if p.CallID == "" {
-			return InvalidParams("callId is required")
-		}
-		return f(b, ctx, p)
-	}
 }
