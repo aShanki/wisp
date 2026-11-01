@@ -124,6 +124,7 @@ private slots:
     void scrollMotion();
     void mouseDrag();
     void wheelDistance();
+    void swipeCoasts();
     void menuPlacement();
     void voiceNote();
     void voicePlayback();
@@ -1634,6 +1635,63 @@ void UiTest::wheelDistance()
     QGuiApplication::sendEvent(m_window, &down);
     QTRY_VERIFY(view->property("contentY").toReal() > up);
     QTRY_VERIFY(view->property("pinned").toBool());
+}
+
+// A trackpad swipe lifted mid-motion coasts on, as it did before WheelScroll
+// took the wheel from the Flickable (libinput sends no momentum events, so
+// the coast is ours). Fingers that stopped before lifting don't coast, and a
+// new touch stops a coast. macOS sends its own momentum events instead.
+void UiTest::swipeCoasts()
+{
+#ifdef Q_OS_MACOS
+    QSKIP("macOS sends trackpad momentum as wheel events");
+#endif
+    auto *view = findView(m_window->contentItem(), m_conv->messages());
+    QVERIFY(view);
+    const QPointF at = sceneRect(view).center();
+    const auto send = [&](Qt::ScrollPhase phase, int pixels) {
+        QWheelEvent e(at, m_window->mapToGlobal(at), {0, pixels}, {0, pixels * 4}, Qt::NoButton, {}, phase, false);
+        QGuiApplication::sendEvent(m_window, &e);
+    };
+    const auto contentY = [&] { return view->property("contentY").toReal(); };
+    // 20 steps of 10 px every 8 ms, ~1250 px/s, then a pause and the lift.
+    const auto swipe = [&](int pauseMs) {
+        QMetaObject::invokeMethod(view->parentItem(), "scrollToBottom");
+        frame();
+        QTest::qWait(100);
+        const qreal before = contentY();
+        for (int i = 0; i < 20; ++i) {
+            send(i == 0 ? Qt::ScrollBegin : Qt::ScrollUpdate, 10);
+            QTest::qWait(8);
+        }
+        QTest::qWait(pauseMs);
+        send(Qt::ScrollEnd, 0);
+        return before;
+    };
+    const auto settle = [&] {
+        QTest::qWait(50);
+        QTRY_VERIFY_WITH_TIMEOUT(!view->property("moving").toBool(), 5000);
+    };
+
+    qreal before = swipe(0);
+    QTRY_VERIFY(view->property("flicking").toBool());
+    settle();
+    const qreal coasted = before - contentY();
+    QVERIFY2(coasted > 300, qPrintable(u"a 200 px swipe went only %1 px"_s.arg(coasted)));
+
+    before = swipe(200);
+    settle();
+    const qreal held = before - contentY();
+    QVERIFY2(held >= 199 && held <= 201, qPrintable(u"a held 200 px swipe went %1 px"_s.arg(held)));
+
+    swipe(0);
+    QTRY_VERIFY(view->property("flicking").toBool());
+    send(Qt::ScrollBegin, 0);
+    QVERIFY(!view->property("flicking").toBool());
+    const qreal caught = contentY();
+    QTest::qWait(150);
+    QCOMPARE(contentY(), caught);
+    send(Qt::ScrollEnd, 0);
 }
 
 // Narrowing the mention list while it is still building rows, here to no
