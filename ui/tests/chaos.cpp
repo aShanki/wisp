@@ -1162,13 +1162,15 @@ void Chaos::wheel(QQuickItem *view)
     for (qsizetype i = 0; i < deltas.size(); ++i) {
         const Qt::ScrollPhase phase = !pixels ? Qt::NoScrollPhase : i == 0 ? Qt::ScrollBegin : Qt::ScrollUpdate;
         QWheelEvent e(p, m_window->mapToGlobal(QPointF(p)), pixels ? QPoint(0, deltas[i]) : QPoint(),
-                      QPoint(0, pixels ? deltas[i] * 2 : deltas[i]), Qt::NoButton, {}, phase, false);
+                      QPoint(0, pixels ? deltas[i] * 2 : deltas[i]), Qt::NoButton, {}, phase, false,
+                      Qt::MouseEventNotSynthesized, pixels ? harness::touchpad() : QPointingDevice::primaryPointingDevice());
         e.setTimestamp(ulong(m_eventTime += between(1, 8)));
         QGuiApplication::sendEvent(m_window, &e);
         QCoreApplication::processEvents();
     }
     if (pixels) {
-        QWheelEvent end(p, m_window->mapToGlobal(QPointF(p)), QPoint(), QPoint(), Qt::NoButton, {}, Qt::ScrollEnd, false);
+        QWheelEvent end(p, m_window->mapToGlobal(QPointF(p)), QPoint(), QPoint(), Qt::NoButton, {}, Qt::ScrollEnd, false,
+                         Qt::MouseEventNotSynthesized, harness::touchpad());
         end.setTimestamp(ulong(m_eventTime += 1));
         QGuiApplication::sendEvent(m_window, &end);
     }

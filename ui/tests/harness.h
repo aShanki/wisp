@@ -10,6 +10,7 @@
 #include <QFont>
 #include <QGuiApplication>
 #include <QMetaObject>
+#include <QPointingDevice>
 #include <QProcess>
 #include <QQuickItem>
 #include <QQuickStyle>
@@ -41,6 +42,17 @@ inline QString scratchRoot()
 inline QString binDir()
 {
     return QDir::cleanPath(QDir(qEnvironmentVariable("WISP_BIN", QStringLiteral(WISP_SOURCE_DIR "/../bin"))).absolutePath());
+}
+
+// A trackpad, as Qt Wayland reports one; send phased wheel events from it, as
+// a real swipe would come, not from the default mouse.
+inline const QPointingDevice *touchpad()
+{
+    static const QPointingDevice device(u"test touchpad"_s, 9001, QInputDevice::DeviceType::TouchPad,
+        QPointingDevice::PointerType::Finger,
+        QInputDevice::Capability::Position | QInputDevice::Capability::Scroll | QInputDevice::Capability::PixelScroll,
+        1, 0);
+    return &device;
 }
 
 inline QString socketPath(const QString &dir) { return dir + "/wispd.sock"_L1; }

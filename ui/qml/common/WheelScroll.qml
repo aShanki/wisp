@@ -9,6 +9,9 @@ import QtQuick
 WheelHandler {
     id: root
     required property Flickable flickable
+    // Qt Wayland sends trackpad swipes from a TouchPad device, which a
+    // WheelHandler ignores by default; the Flickable then scrolled them itself.
+    acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
     // The user scrolled; and their scroll came to rest.
     signal scrolled()
     signal settled()

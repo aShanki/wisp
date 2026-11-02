@@ -1599,13 +1599,16 @@ void UiTest::wheelDistance()
         const qreal before = view->property("contentY").toReal();
         for (int i = 0; i < events; ++i) {
             const Qt::ScrollPhase p = phase == Qt::NoScrollPhase ? phase : i == 0 ? Qt::ScrollBegin : Qt::ScrollUpdate;
-            QWheelEvent e(at, m_window->mapToGlobal(at), pixel, angle, Qt::NoButton, {}, p, false);
+            const QPointingDevice *device = phase == Qt::NoScrollPhase ? QPointingDevice::primaryPointingDevice() : harness::touchpad();
+            QWheelEvent e(at, m_window->mapToGlobal(at), pixel, angle, Qt::NoButton, {}, p, false,
+                          Qt::MouseEventNotSynthesized, device);
             e.setTimestamp(clock.msecsSinceReference() + clock.elapsed());
             QGuiApplication::sendEvent(m_window, &e);
             QTest::qWait(phase == Qt::NoScrollPhase ? 40 : 8);
         }
         if (phase != Qt::NoScrollPhase) {
-            QWheelEvent e(at, m_window->mapToGlobal(at), {}, {}, Qt::NoButton, {}, Qt::ScrollEnd, false);
+            QWheelEvent e(at, m_window->mapToGlobal(at), {}, {}, Qt::NoButton, {}, Qt::ScrollEnd, false,
+                          Qt::MouseEventNotSynthesized, harness::touchpad());
             QGuiApplication::sendEvent(m_window, &e);
         }
         QTest::qWait(300);
@@ -1650,7 +1653,8 @@ void UiTest::swipeCoasts()
     QVERIFY(view);
     const QPointF at = sceneRect(view).center();
     const auto send = [&](Qt::ScrollPhase phase, int pixels) {
-        QWheelEvent e(at, m_window->mapToGlobal(at), {0, pixels}, {0, pixels * 4}, Qt::NoButton, {}, phase, false);
+        QWheelEvent e(at, m_window->mapToGlobal(at), {0, pixels}, {0, pixels * 4}, Qt::NoButton, {}, phase, false,
+                      Qt::MouseEventNotSynthesized, harness::touchpad());
         QGuiApplication::sendEvent(m_window, &e);
     };
     const auto contentY = [&] { return view->property("contentY").toReal(); };
