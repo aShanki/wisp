@@ -1584,7 +1584,7 @@ void UiTest::mouseDrag()
 }
 
 // A mouse-wheel notch scrolls as far as a browser's, faster with the
-// system's acceleration; trackpad swipes still follow the fingers.
+// system's acceleration; trackpad swipes move as far as Chromium's.
 void UiTest::wheelDistance()
 {
     auto *view = findView(m_window->contentItem(), m_conv->messages());
@@ -1616,20 +1616,24 @@ void UiTest::wheelDistance()
         return before - view->property("contentY").toReal();
     };
     const qreal notch = moved({}, {0, 120}, Qt::NoScrollPhase, 3);
-    QVERIFY2(notch >= 3 * 99 && notch <= 3 * 101, qPrintable(QString::number(notch)));
+    QVERIFY2(notch >= 3 * 119 && notch <= 3 * 121, qPrintable(QString::number(notch)));
 #ifdef Q_OS_MACOS
     // One line, then the same notch accelerated to four lines.
     const qreal line = moved({0, 20}, {0, 120}, Qt::NoScrollPhase, 3);
     QVERIFY2(line >= 3 * 39 && line <= 3 * 41, qPrintable(QString::number(line)));
     const qreal fast = moved({0, 80}, {0, 120}, Qt::NoScrollPhase, 3);
     QVERIFY2(fast >= 3 * 159 && fast <= 3 * 161, qPrintable(QString::number(fast)));
+    const qreal swipe = moved({0, 10}, {0, 40}, Qt::ScrollUpdate, 20);
+    QVERIFY2(swipe > 150, qPrintable(QString::number(swipe)));
 #else
     // A wheel's pixel delta (Wayland's 15 px) doesn't shorten its notch.
     const qreal wayland = moved({0, 15}, {0, 120}, Qt::NoScrollPhase, 3);
-    QVERIFY2(wayland >= 3 * 99 && wayland <= 3 * 101, qPrintable(QString::number(wayland)));
+    QVERIFY2(wayland >= 3 * 119 && wayland <= 3 * 121, qPrintable(QString::number(wayland)));
+    // A swipe moves as far as Chromium's: Qt Wayland's angleDelta, 12x the
+    // compositor's pixels (3 px a step here), not the pixels themselves.
+    const qreal swipe = moved({0, 3}, {0, 36}, Qt::ScrollUpdate, 20);
+    QVERIFY2(swipe > 20 * 36 - 1, qPrintable(QString::number(swipe)));
 #endif
-    const qreal swipe = moved({0, 10}, {0, 40}, Qt::ScrollUpdate, 20);
-    QVERIFY2(swipe > 150, qPrintable(QString::number(swipe)));
     QVERIFY(!view->property("pinned").toBool());
     // Back down from there to the newest message, which pins the view again.
     const qreal up = view->property("contentY").toReal();
@@ -1653,19 +1657,20 @@ void UiTest::swipeCoasts()
     QVERIFY(view);
     const QPointF at = sceneRect(view).center();
     const auto send = [&](Qt::ScrollPhase phase, int pixels) {
-        QWheelEvent e(at, m_window->mapToGlobal(at), {0, pixels}, {0, pixels * 4}, Qt::NoButton, {}, phase, false,
+        QWheelEvent e(at, m_window->mapToGlobal(at), {0, pixels}, {0, pixels * 12}, Qt::NoButton, {}, phase, false,
                       Qt::MouseEventNotSynthesized, harness::touchpad());
         QGuiApplication::sendEvent(m_window, &e);
     };
     const auto contentY = [&] { return view->property("contentY").toReal(); };
-    // 20 steps of 10 px every 8 ms, ~1250 px/s, then a pause and the lift.
+    // 20 steps of 1 compositor px (12 px scrolled) every 8 ms, ~1500 px/s,
+    // then a pause and the lift.
     const auto swipe = [&](int pauseMs) {
         QMetaObject::invokeMethod(view->parentItem(), "scrollToBottom");
         frame();
         QTest::qWait(100);
         const qreal before = contentY();
         for (int i = 0; i < 20; ++i) {
-            send(i == 0 ? Qt::ScrollBegin : Qt::ScrollUpdate, 10);
+            send(i == 0 ? Qt::ScrollBegin : Qt::ScrollUpdate, 1);
             QTest::qWait(8);
         }
         QTest::qWait(pauseMs);
@@ -1681,12 +1686,12 @@ void UiTest::swipeCoasts()
     QTRY_VERIFY(view->property("flicking").toBool());
     settle();
     const qreal coasted = before - contentY();
-    QVERIFY2(coasted > 300, qPrintable(u"a 200 px swipe went only %1 px"_s.arg(coasted)));
+    QVERIFY2(coasted > 360, qPrintable(u"a 240 px swipe went only %1 px"_s.arg(coasted)));
 
     before = swipe(200);
     settle();
     const qreal held = before - contentY();
-    QVERIFY2(held >= 199 && held <= 201, qPrintable(u"a held 200 px swipe went %1 px"_s.arg(held)));
+    QVERIFY2(held >= 239 && held <= 241, qPrintable(u"a held 240 px swipe went %1 px"_s.arg(held)));
 
     swipe(0);
     QTRY_VERIFY(view->property("flicking").toBool());

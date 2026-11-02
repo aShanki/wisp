@@ -1,9 +1,10 @@
 // Wheels and trackpads scroll a Flickable as a browser does; declare it inside
-// the Flickable. A mouse notch eases 100 px, or on macOS 40 px a line with
+// the Flickable. A mouse notch eases 120 px, or on macOS 40 px a line with
 // the system's acceleration (Qt there keeps that only in pixelDelta, at 20 px
-// a line). A trackpad swipe follows its pixels and then coasts: macOS sends
+// a line). A trackpad swipe follows its fingers and then coasts: macOS sends
 // the momentum as events, elsewhere (libinput) the Flickable flicks at the
-// swipe's last speed.
+// swipe's last speed. Off macOS a swipe moves as Chromium's does, 12 px per
+// compositor pixel, which Qt Wayland already reports as angleDelta.
 import QtQuick
 
 WheelHandler {
@@ -31,6 +32,9 @@ WheelHandler {
         }
     }
 
+    // Qt caps flicks at 2500 px/s, far below a Chromium-speed swipe's coast.
+    Component.onCompleted: flickable.maximumFlickVelocity = Math.max(flickable.maximumFlickVelocity, 20000)
+
     function stop() { glide.stop() }
     function clamped(y) {
         const f = flickable
@@ -49,7 +53,8 @@ WheelHandler {
     }
 
     onWheel: event => {
-        const step = event.pixelDelta.y !== 0 ? event.pixelDelta.y : event.angleDelta.y / 120 * 100
+        const step = linesInPixels && event.pixelDelta.y !== 0 ? event.pixelDelta.y
+            : event.angleDelta.y !== 0 ? event.angleDelta.y : 12 * event.pixelDelta.y
         const now = Date.now()
         if (event.phase !== Qt.ScrollEnd && event.phase !== Qt.ScrollMomentum)
             flickable.cancelFlick()
@@ -62,11 +67,9 @@ WheelHandler {
                 flickable.flick(0, v)
             settled()
         } else if (event.phase === Qt.NoScrollPhase) {
-            if (event.angleDelta.y === 0 && event.pixelDelta.y === 0)
+            if (step === 0)
                 return
-            const notch = linesInPixels && event.pixelDelta.y !== 0 ? 2 * event.pixelDelta.y
-                : event.angleDelta.y !== 0 ? event.angleDelta.y / 120 * 100 : event.pixelDelta.y
-            goal = clamped((glide.running ? goal : flickable.contentY) - notch)
+            goal = clamped((glide.running ? goal : flickable.contentY) - (linesInPixels && event.pixelDelta.y !== 0 ? 2 * step : step))
             scrolled()
             glide.restart()
         } else if (step !== 0) {
