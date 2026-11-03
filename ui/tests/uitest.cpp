@@ -18,6 +18,7 @@
 #include <QDropEvent>
 #include <QElapsedTimer>
 #include <QFileInfo>
+#include <QFontMetricsF>
 #include <QGuiApplication>
 #include <QImage>
 #include <QJsonArray>
@@ -115,6 +116,7 @@ private slots:
     void searchOpensChat();
     void fullTextSearch();
     void sendText();
+    void selectMessageText();
     void reply();
     void hoverMenu();
     void pasteImage();
@@ -567,6 +569,39 @@ void UiTest::sendText()
     })).size(), 10000);
     QTRY_COMPARE(model->indexOf(answer["id"_L1].toString()), 0);
     QTest::qWait(100);
+}
+
+void UiTest::selectMessageText()
+{
+    openBigChat();
+    type(u"Drag selection test message"_s);
+    key(Qt::Key_Return);
+    QQuickItem *view = findView(m_window->contentItem(), m_conv->messages());
+    QVERIFY(view);
+    QQuickItem *body = nullptr;
+    QTRY_VERIFY([&] {
+        auto *row = itemAt(view, 0);
+        body = row ? named(row, u"messageBodyText"_s) : nullptr;
+        return body && body->property("text").toString().contains(u"Drag selection test message"_s);
+    }());
+    const QFontMetricsF metrics(body->property("font").value<QFont>());
+    const QPoint start = body->mapToScene(QPointF(1, 10)).toPoint();
+    const QPoint end = body->mapToScene(QPointF(metrics.horizontalAdvance(u"Drag selection"_s) + 1, 10)).toPoint();
+    QTest::mousePress(m_window, Qt::LeftButton, {}, start);
+    for (int i = 1; i <= 10; ++i) QTest::mouseMove(m_window, start + (end - start) * i / 10, 5);
+    QTest::mouseRelease(m_window, Qt::LeftButton, {}, end);
+    body = named(itemAt(view, 0), u"messageBody"_s);
+    QVERIFY(body);
+    QTRY_COMPARE(body->property("selectedText").toString(), u"Drag selection"_s);
+    key(Qt::Key_C, Qt::ControlModifier);
+    QCOMPARE(QGuiApplication::clipboard()->text(), u"Drag selection"_s);
+    key(Qt::Key_X, Qt::ControlModifier);
+    QVERIFY(body->property("text").toString().contains(u"Drag selection test message"_s));
+    key(Qt::Key_Escape);
+    QCOMPARE(m_conv->jid(), kBig);
+    QCOMPARE(body->property("selectedText").toString(), QString());
+    key(Qt::Key_K, Qt::ControlModifier);
+    key(Qt::Key_Escape);
 }
 
 void UiTest::reply()

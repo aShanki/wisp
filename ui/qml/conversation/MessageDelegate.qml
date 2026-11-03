@@ -6,7 +6,11 @@ import QtQuick
 import Wisp
 
 Item {
-    ListView.onPooled: if (voiceLoader.item) voiceLoader.item.resetPlayback()
+    ListView.onPooled: {
+        selection.active = false
+        if (voiceLoader.item) voiceLoader.item.resetPlayback()
+    }
+    onMsgIdChanged: if (selection) selection.active = false
     id: root
 
     required property string msgId
@@ -48,6 +52,8 @@ Item {
     property bool flash: false // set while the view shows this message as a reply's original
     signal imageClicked(string id, string source, int w, int h)
     signal quoteClicked(string id)
+    signal selectionStarted()
+    function clearSelection() { selection.active = false }
 
     readonly property bool isSystem: type === "system"
     readonly property bool isDeleted: deleted || type === "revoked"
@@ -80,6 +86,11 @@ Item {
     // A deleted message's text follows Web's 22 px icon in a 24 px slot.
     readonly property int bodyIndent: isDeleted ? 29 : 0
     readonly property Item bubbleItem: bubble
+
+    function activateLink(link) {
+        if (link.startsWith("mention:")) Conversation.open(link.slice(8))
+        else Qt.openUrlExternally(link)
+    }
 
     // Geometry, in WhatsApp Web's pixels. Its row padding and bubble width
     // follow the window width: fixed sides in 1:1 chats, a share of the row
@@ -375,6 +386,8 @@ Item {
         // the 20 px line, hence the 2 px.
         Text {
             id: body
+            objectName: "messageBodyText"
+            opacity: selection.active ? 0 : 1
             visible: root.hasBody
             x: root.padL + (root.bigEmoji ? 15 : root.bodyIndent)
             y: root.bigEmoji ? root.emojiY + (root.emojiBox - implicitHeight) / 2
@@ -402,11 +415,86 @@ Item {
             font.letterSpacing: root.body2 ? 0.16 : 0
             lineHeight: root.bigEmoji ? 1 : root.body2 ? 20 : 19
             lineHeightMode: root.bigEmoji ? Text.ProportionalHeight : Text.FixedHeight
-            onLinkActivated: link => {
-                if (!link.startsWith("mention:"))
-                    Qt.openUrlExternally(link)
-                else
-                    Conversation.open(link.slice(8))
+            onLinkActivated: link => root.activateLink(link)
+        }
+
+        // Only an active selection needs a QTextDocument/editor. Idle rows
+        // keep the lightweight Text renderer and its original geometry.
+        Loader {
+            id: selection
+            active: false
+            x: body.x
+            y: body.y
+            width: body.width
+            height: body.height
+            sourceComponent: TextEdit {
+                id: editor
+                objectName: "messageBody"
+                text: body.mentionStyle + root.bodyText + " "
+                    + "&nbsp;".repeat(Math.max(0, Math.round((meta.width + 5.5) / (root.spaceWidth + font.letterSpacing)) - 1))
+                textFormat: TextEdit.RichText
+                wrapMode: root.bigEmoji ? TextEdit.NoWrap : TextEdit.Wrap
+                horizontalAlignment: body.horizontalAlignment
+                font: body.font
+                color: body.color
+                readOnly: true
+                selectByMouse: true
+                selectionColor: Theme.highlight
+                selectedTextColor: Theme.text
+                onTextChanged: Format.messageLineHeight(textDocument, root.bigEmoji ? 0 : root.body2 ? 20 : 19)
+                Component.onCompleted: Format.messageLineHeight(textDocument, root.bigEmoji ? 0 : root.body2 ? 20 : 19)
+                Keys.onEscapePressed: event => {
+                    event.accepted = selectionStart !== selectionEnd
+                    deselect()
+                }
+                onLinkActivated: link => root.activateLink(link)
+            }
+        }
+        MouseArea {
+            id: selector
+            x: body.x
+            y: body.y
+            width: body.width
+            height: body.height
+            enabled: root.hasBody
+            acceptedButtons: Qt.LeftButton
+            preventStealing: true
+            cursorShape: Qt.IBeamCursor
+            property point start
+            property bool dragged: false
+            property int anchor: 0
+            function begin() {
+                root.selectionStarted()
+                selection.active = true
+                const editor = selection.item as TextEdit
+                anchor = editor.positionAt(start.x, start.y)
+                editor.cursorPosition = anchor
+                editor.forceActiveFocus()
+                return editor
+            }
+            onPressed: mouse => {
+                selector.forceActiveFocus()
+                start = Qt.point(mouse.x, mouse.y)
+                dragged = false
+                if (selection.active) (selection.item as TextEdit).deselect()
+            }
+            onPositionChanged: mouse => {
+                if (!pressed) return
+                if (!dragged && Math.hypot(mouse.x - start.x, mouse.y - start.y) < Qt.styleHints.startDragDistance) return
+                const editor = dragged ? selection.item as TextEdit : begin()
+                dragged = true
+                editor.select(anchor, editor.positionAt(mouse.x, mouse.y))
+            }
+            onClicked: mouse => {
+                if (!dragged) {
+                    const link = body.linkAt(mouse.x, mouse.y)
+                    if (link !== "") root.activateLink(link)
+                }
+            }
+            onDoubleClicked: {
+                const editor = begin()
+                editor.selectWord()
+                dragged = true
             }
         }
 

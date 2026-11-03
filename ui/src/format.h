@@ -4,6 +4,7 @@
 #include <QList>
 #include <QFont>
 #include <QObject>
+#include <QQuickTextDocument>
 #include <QString>
 #include <QStringList>
 #include <QtQml/qqmlregistration.h>
@@ -38,6 +39,7 @@ public:
     // right; where names overlap, the longest.
     static QList<std::pair<qsizetype, qsizetype>> nameTokens(QStringView text, const QStringList &names);
     static QString user(const QString &jid); // "61400000001" of "61400000001:3@s.whatsapp.net"
+    Q_INVOKABLE static void messageLineHeight(QQuickTextDocument *document, qreal height);
     static QString fold(const QString &s);   // case and accents folded, for matching names
     Q_INVOKABLE static QString elideRichText(const QString &html, const QFont &font, qreal width);
 };

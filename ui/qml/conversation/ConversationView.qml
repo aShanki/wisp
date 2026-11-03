@@ -17,6 +17,7 @@ Rectangle {
     readonly property real nbsp: space.advanceWidth("\u00a0")
     property string jumpId: "" // a reply's original, while older pages load to find it
     property int jumpCount: 0
+    property MessageDelegate selectedMessage: null
     property string flashId: ""
 
     function scrollToBottom() {
@@ -235,6 +236,11 @@ Rectangle {
         onContentHeightChanged: if (pinned && !moving) toEnd()
 
         delegate: MessageDelegate {
+            id: messageRow
+            onSelectionStarted: {
+                if (view.selectedMessage && view.selectedMessage !== messageRow) view.selectedMessage.clearSelection()
+                view.selectedMessage = messageRow
+            }
             width: list.width
             isGroup: Conversation.isGroup
             spaceWidth: view.nbsp

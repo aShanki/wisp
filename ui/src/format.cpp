@@ -1,4 +1,8 @@
 #include "format.h"
+#include <QQuickTextDocument>
+#include <QTextBlock>
+#include <QTextCursor>
+#include <QTextDocument>
 
 #include <QDateTime>
 #include <QFontMetricsF>
@@ -218,4 +222,26 @@ QString Format::fold(const QString &s)
         if (c.category() != QChar::Mark_NonSpacing)
             out.append(c);
     return out.toCaseFolded();
+}
+
+// QTextEdit supplies native selection. Match the fixed message line heights
+// used by the previous Text renderer without adding paragraph margins.
+void Format::messageLineHeight(QQuickTextDocument *document, qreal height)
+{
+    if (!document || height <= 0) return;
+    auto *doc = document->textDocument();
+    // Applying block formatting emits textChanged synchronously.
+    if (doc->property("wispFormatting").toBool()) return;
+    doc->setProperty("wispFormatting", true);
+    QTextCursor cursor(doc);
+    cursor.beginEditBlock();
+    for (auto block = doc->begin(); block.isValid(); block = block.next()) {
+        auto format = block.blockFormat();
+        if (format.lineHeightType() == QTextBlockFormat::FixedHeight && format.lineHeight() == height) continue;
+        cursor.setPosition(block.position());
+        format.setLineHeight(height, QTextBlockFormat::FixedHeight);
+        cursor.setBlockFormat(format);
+    }
+    cursor.endEditBlock();
+    doc->setProperty("wispFormatting", false);
 }
