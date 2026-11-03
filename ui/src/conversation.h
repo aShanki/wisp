@@ -25,6 +25,7 @@ class ConversationController : public QObject
     QML_SINGLETON
 
     Q_PROPERTY(QString jid READ jid NOTIFY jidChanged)
+    Q_PROPERTY(bool historical READ historical NOTIFY historicalChanged)
     Q_PROPERTY(QString name READ name NOTIFY headerChanged)
     Q_PROPERTY(bool isGroup READ isGroup NOTIFY headerChanged)
     Q_PROPERTY(bool muted READ muted NOTIFY headerChanged)
@@ -42,6 +43,9 @@ public:
     static ConversationController *instance();
     static ConversationController *create(QQmlEngine *, QJSEngine *);
 
+    bool historical() const { return m_historical; }
+    Q_INVOKABLE void openMessage(const QString &jid, const QString &id);
+    Q_INVOKABLE void latest();
     QString jid() const { return m_jid; }
     QString name() const { return m_name; }
     bool isGroup() const { return m_group; }
@@ -86,6 +90,8 @@ public:
 
 signals:
     void jidChanged();
+    void historicalChanged();
+    void jumpRequested(const QString &id);
     void headerChanged();
     void subtitleChanged();
     void loadingChanged();
@@ -117,6 +123,7 @@ private:
     MessageModel *m_model;
     AttachmentModel *m_attachments;
     QString m_jid, m_name, m_presence;
+    bool m_historical = false;
     bool m_group = false, m_muted = false, m_readOnly = false;
     int m_unread = 0;
     int m_unreadCount = 0; // unread when the chat was opened

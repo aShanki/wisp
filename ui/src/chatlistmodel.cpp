@@ -225,6 +225,7 @@ void ChatListModel::rowChanged(const Chat *c, const QList<int> &roles)
 
 void ChatListModel::store(Chat &&c)
 {
+    m_orderDirty = true;
     if (c.jid.isEmpty())
         return;
     Chat *p = m_chats.value(c.jid);
@@ -285,6 +286,7 @@ void ChatListModel::store(Chat &&c)
 
 void ChatListModel::remove(const QString &jid)
 {
+    m_orderDirty = true;
     Chat *p = m_chats.take(jid);
     if (!p)
         return;
@@ -325,11 +327,15 @@ void ChatListModel::setFilter(Filter f)
 // both keep their relative order, since the sort is the same.
 void ChatListModel::refilter()
 {
+    if (m_orderDirty) {
+        m_order = m_chats.values();
+        std::sort(m_order.begin(), m_order.end(), [](const Chat *a, const Chat *b) { return lessThan(*a, *b); });
+        m_orderDirty = false;
+    }
     QList<Chat *> next;
-    for (Chat *c : std::as_const(m_chats))
-        if (visible(*c))
-            next.append(c);
-    std::sort(next.begin(), next.end(), [](const Chat *a, const Chat *b) { return lessThan(*a, *b); });
+    next.reserve(m_order.size());
+    for (Chat *c : std::as_const(m_order))
+        if (visible(*c)) next.append(c);
 
     const qsizetype before = m_rows.size();
     const QSet<Chat *> keep(next.cbegin(), next.cend());
@@ -480,6 +486,7 @@ void ChatListModel::fetchPage(const QString &cursor, quint64 gen)
 
 void ChatListModel::finishLoad()
 {
+    m_orderDirty = true;
     const QList<QJsonObject> buf = std::exchange(m_loadBuf, {});
     if (m_chats.isEmpty()) {
         beginResetModel();

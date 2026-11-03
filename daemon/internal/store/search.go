@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -52,7 +53,7 @@ func (s *Store) Search(ctx context.Context, p api.SearchParams) ([]api.SearchRes
 	COALESCE(ch.name, ''), COALESCE(ch.kind, ''),
 	COALESCE(cc.full_name, ''), COALESCE(cc.push_name, ''), COALESCE(cc.business_name, ''),
 	COALESCE(sc.full_name, ''), COALESCE(sc.push_name, ''), COALESCE(sc.business_name, ''),
-	`+mentionsCol+`
+	`+mentionsCol+`, m.seq
 FROM messages_fts
 	JOIN messages m ON m.seq = messages_fts.rowid
 	LEFT JOIN chats ch ON ch.jid = m.chat
@@ -64,6 +65,19 @@ WHERE messages_fts MATCH ?`, snippetTokens)
 		q += ` AND m.chat = ?`
 		args = append(args, p.Chat)
 	}
+	if p.Before != "" {
+		parts := strings.Split(p.Before, ":")
+		if len(parts) != 2 {
+			return nil, api.InvalidParams("bad search cursor")
+		}
+		ts, e1 := strconv.ParseInt(parts[0], 10, 64)
+		seq, e2 := strconv.ParseInt(parts[1], 10, 64)
+		if e1 != nil || e2 != nil {
+			return nil, api.InvalidParams("bad search cursor")
+		}
+		q += " AND (m.ts, m.seq) < (?, ?)"
+		args = append(args, ts, seq)
+	}
 	q += ` ORDER BY m.ts DESC, m.seq DESC LIMIT ?`
 	args = append(args, limit)
 
@@ -74,12 +88,14 @@ WHERE messages_fts MATCH ?`, snippetTokens)
 	defer rows.Close()
 	for rows.Next() {
 		var r api.SearchResult
+		var seq int64
 		var push, explicit, kind, mentions string
 		var cn, sn names
 		if err := rows.Scan(&r.Chat, &r.ID, &r.Sender, &push, &r.FromMe, &r.Timestamp, &r.Snippet,
-			&explicit, &kind, &cn.full, &cn.push, &cn.business, &sn.full, &sn.push, &sn.business, &mentions); err != nil {
+			&explicit, &kind, &cn.full, &cn.push, &cn.business, &sn.full, &sn.push, &sn.business, &mentions, &seq); err != nil {
 			return nil, fmt.Errorf("store: scan search: %w", err)
 		}
+		r.Cursor = fmt.Sprintf("%d:%d", r.Timestamp, seq)
 		ms, err := decodeMentions(mentions)
 		if err != nil {
 			return nil, fmt.Errorf("store: scan search: %w", err)

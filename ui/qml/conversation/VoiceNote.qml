@@ -67,12 +67,17 @@ Item {
         player.stop()
     }
     onMsgIdChanged: resetPlayback()
-    onMediaUrlChanged: Qt.callLater(function() {
-        if (pendingMsgId !== "" && pendingMsgId === msgId && mediaUrl.toString() !== "") {
-            pendingMsgId = ""
-            player.play()
+    onMediaUrlChanged: resumePlayback.restart()
+    Timer {
+        id: resumePlayback
+        interval: 0
+        onTriggered: {
+            if (root.pendingMsgId !== "" && root.pendingMsgId === root.msgId && root.mediaUrl.toString() !== "") {
+                root.pendingMsgId = ""
+                player.play()
+            }
         }
-    })
+    }
 
     Icon {
         x: root.playerX + 5

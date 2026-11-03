@@ -43,6 +43,15 @@ number" and type the code Wisp shows.
 Data lives in `~/.local/share/wisp`. The log is `~/.local/state/wisp/wispd.log`.
 Set `WISP_GPU=1` to render the window on the GPU instead of in software.
 
+## Search
+
+Use Ctrl+K to search chats and message text across your synced history. Chat
+matches appear immediately; message matches follow after a short typing pause.
+Choose a result to jump to the message, or use More results to continue through
+older matches. Search ignores case and accents and matches the last word as a
+prefix. Ctrl+F (or the search icon in a chat header) searches that conversation.
+Back to latest messages returns from an old result to the live conversation.
+
 ## License
 
 MIT. Vendored and third-party material keeps its own licence:

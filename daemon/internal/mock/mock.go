@@ -450,11 +450,17 @@ func (b *Backend) MessagesList(ctx context.Context, p api.MessagesListParams) (*
 		return nil, err
 	}
 	end := c.count()
+	if p.Around != "" {
+		p.Before = p.Around
+	}
 	if p.Before != "" {
 		var ok bool
 		if end, ok = c.pos(p.Before); !ok {
 			return nil, fmt.Errorf("message %s: %w", p.Before, api.ErrNotFound)
 		}
+	}
+	if p.Around != "" {
+		end++
 	}
 	start := max(0, end-p.Limit)
 	res := &api.MessagesListResult{Messages: make([]api.Message, 0, end-start), HasMore: start > 0}
@@ -760,18 +766,31 @@ func (b *Backend) Search(ctx context.Context, p api.SearchParams) (*api.SearchRe
 		if p.Chat != "" && c.spec.jid != p.Chat {
 			continue
 		}
-		for i, n := c.count()-1, 0; i >= 0 && n < p.Limit; i-- {
+		for i, n := c.count()-1, 0; i >= 0 && (p.Before != "" || n < p.Limit); i-- {
 			m := c.at(i)
-			if m.Type == api.MsgSystem || !strings.Contains(strings.ToLower(m.Text), q) {
+			if c.gone[m.ID] || m.Deleted || m.Type == api.MsgSystem || !strings.Contains(strings.ToLower(m.Text), q) {
 				continue
 			}
 			n++
-			res.Results = append(res.Results, api.SearchResult{Chat: m.Chat, ChatName: c.row.Name, ID: m.ID,
+			res.Results = append(res.Results, api.SearchResult{Cursor: m.Chat + "/" + m.ID, Chat: m.Chat, ChatName: c.row.Name, ID: m.ID,
 				Sender: m.Sender, SenderName: m.SenderName, FromMe: m.FromMe, Timestamp: m.Timestamp,
 				Snippet: snippet(m.Text, q)})
 		}
 	}
-	slices.SortFunc(res.Results, func(x, y api.SearchResult) int { return cmp.Compare(y.Timestamp, x.Timestamp) })
+	slices.SortFunc(res.Results, func(x, y api.SearchResult) int {
+		if n := cmp.Compare(y.Timestamp, x.Timestamp); n != 0 {
+			return n
+		}
+		return strings.Compare(y.Cursor, x.Cursor)
+	})
+	if p.Before != "" {
+		at := slices.IndexFunc(res.Results, func(r api.SearchResult) bool { return r.Cursor == p.Before })
+		if at < 0 {
+			res.Results = nil
+		} else {
+			res.Results = res.Results[at+1:]
+		}
+	}
 	res.Results = res.Results[:min(len(res.Results), p.Limit)]
 	return res, nil
 }

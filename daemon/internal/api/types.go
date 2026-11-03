@@ -212,6 +212,7 @@ type Contact struct {
 
 // SearchResult is one full-text search hit.
 type SearchResult struct {
+	Cursor     string `json:"cursor"`
 	Chat       string `json:"chat"`
 	ChatName   string `json:"chatName"`
 	ID         string `json:"id"`

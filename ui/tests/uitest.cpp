@@ -9,6 +9,7 @@
 #include "imageprovider.h"
 #include "membermodel.h"
 #include "rpcclient.h"
+#include "searchmodel.h"
 
 #include <QClipboard>
 #include <QDir>
@@ -112,6 +113,7 @@ private slots:
     void shell();
     void notificationWindowState();
     void searchOpensChat();
+    void fullTextSearch();
     void sendText();
     void reply();
     void hoverMenu();
@@ -482,6 +484,63 @@ void UiTest::searchOpensChat()
     key(Qt::Key_Return);
     QVERIFY(focused()->inherits("QQuickTextEdit"));
     QCOMPARE(focused()->property("text").toString(), QString());
+}
+
+void UiTest::fullTextSearch()
+{
+    SearchModel search;
+    search.setQuery(u"dinner"_s);
+    // Clearing and replacing a query invalidates even an in-flight reply.
+    QTest::qWait(140);
+    search.setQuery(u"thistermdoesnotexist1234567"_s);
+    QTRY_VERIFY(!search.busy());
+    QCOMPARE(search.rowCount(), 0);
+    search.setQuery(u"the"_s);
+    QTRY_VERIFY(!search.busy() && search.rowCount() > 0);
+    QVERIFY(search.error().isEmpty());
+    const int first = search.rowCount();
+    QVERIFY(search.hasMore());
+    search.loadMore();
+    QTRY_VERIFY(!search.busy() && search.rowCount() > first);
+    search.setChat(kBig);
+    QTRY_VERIFY(!search.busy() && search.rowCount() > 0);
+    const auto roles = search.roleNames();
+    const int chatRole = roles.key("chat");
+    for (int i = 0; i < search.rowCount(); ++i)
+        QCOMPARE(search.index(i).data(chatRole).toString(), kBig);
+    search.open(search.rowCount() - 1);
+    QTRY_VERIFY(!m_conv->loading());
+    QVERIFY(m_conv->messages()->rowCount() <= 51);
+    QCOMPARE(m_conv->jid(), kBig);
+    QVERIFY(m_conv->messages()->rowCount() > 0);
+    m_conv->latest();
+    QTRY_VERIFY(!m_conv->loading() && !m_conv->historical());
+    key(Qt::Key_F, Qt::ControlModifier);
+    QTRY_VERIFY(focused() && focused()->objectName() == "chatSearchField"_L1);
+    type(u"dinner"_s);
+    auto *results = named(m_window->contentItem(), u"chatSearchResults"_s);
+    QVERIFY(results);
+    auto *model = qobject_cast<SearchModel *>(results->property("results").value<QObject *>());
+    QVERIFY(model);
+    QTRY_VERIFY(!model->busy() && model->rowCount() > 0);
+    key(Qt::Key_Return);
+    QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+    QTRY_VERIFY(!m_conv->loading());
+    m_conv->latest();
+    QTRY_VERIFY(!m_conv->loading());
+    key(Qt::Key_K, Qt::ControlModifier);
+    type(u"dinner"_s);
+    auto *global = named(m_window->contentItem(), u"globalSearchResults"_s);
+    QVERIFY(global);
+    auto *globalModel = qobject_cast<SearchModel *>(global->property("results").value<QObject *>());
+    QVERIFY(globalModel);
+    QTRY_VERIFY(!globalModel->busy() && globalModel->rowCount() > 0);
+    key(Qt::Key_Return);
+    QTRY_VERIFY(!m_conv->loading());
+    QVERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+    key(Qt::Key_K, Qt::ControlModifier);
+    key(Qt::Key_Escape);
+    openBigChat();
 }
 
 void UiTest::sendText()

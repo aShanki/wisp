@@ -137,6 +137,41 @@ void ConversationController::open(const QString &jid)
     switchTo(jid);
 }
 
+void ConversationController::latest()
+{
+    switchTo(m_jid);
+}
+
+void ConversationController::openMessage(const QString &jid, const QString &id)
+{
+    open(jid);
+    if (m_model->indexOf(id) >= 0) {
+        ++m_gen;
+        setLoading(false);
+        emit jumpRequested(id);
+        return;
+    }
+    // Invalidate the newest-page request if it raced this jump. Fetch one
+    // indexed page at the target, regardless of how far back the match is.
+    const quint64 gen = ++m_gen;
+    m_historical = true;
+    emit historicalChanged();
+    setLoading(true);
+    RpcClient::instance()->call(u"messages.list"_s,
+        {{u"chat"_s, jid}, {u"around"_s, id}, {u"limit"_s, kPageSize}},
+        [this, gen, id](const QJsonValue &r, const QJsonObject &e) {
+            if (gen != m_gen) return;
+            setLoading(false);
+            if (!e.isEmpty()) { fail(e, u"Could not open search result"_s); latest(); return; }
+            m_early.clear();
+            m_model->reset(m_jid);
+            m_model->appendOlder(r["messages"_L1].toArray());
+            m_loaded = true;
+            setHasMore(r["hasMore"_L1].toBool());
+            emit jumpRequested(id);
+        });
+}
+
 void ConversationController::close()
 {
     switchTo({});
@@ -145,6 +180,8 @@ void ConversationController::close()
 void ConversationController::switchTo(const QString &jid)
 {
     stopTyping();
+    m_historical = false;
+    emit historicalChanged();
     m_attachments->clear();
     ++m_gen;
     m_jid = jid;
@@ -194,6 +231,7 @@ void ConversationController::switchTo(const QString &jid)
 // reconnecting or a history sync.
 void ConversationController::loadNewest()
 {
+    if (m_historical) return;
     const quint64 gen = m_gen;
     setLoading(true);
     RpcClient::instance()->call(
@@ -312,6 +350,8 @@ void ConversationController::onEvent(const QString &name, const QJsonObject &par
         const bool unloaded = m_hasMore && oldest && msg["timestamp"_L1].toInteger() < oldest->timestamp;
         if (name == "message.update"_L1)
             m_model->update(msg);
+        else if (m_historical)
+            return;
         else if (!m_loaded)
             m_early.append(msg);
         else if (!unloaded && m_model->upsert(msg))
@@ -340,6 +380,15 @@ void ConversationController::onEvent(const QString &name, const QJsonObject &par
 // tmp is a file to delete once the daemon has its copy.
 void ConversationController::sendMessage(const QString &method, QJsonObject params, const QString &tmp)
 {
+    if (m_historical) {
+        ++m_gen;
+        m_historical = false;
+        emit historicalChanged();
+        m_loaded = false;
+        m_model->reset(m_jid);
+        loadNewest();
+    }
+
     params.insert(u"chat"_s, m_jid);
     params.insert(u"replyTo"_s, m_reply.value(u"id"_s).toString());
     cancelReply();

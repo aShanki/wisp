@@ -6,6 +6,7 @@ import Wisp
 
 Rectangle {
     id: root
+    signal searchRequested()
     implicitHeight: Theme.headerHeight
     color: Theme.panel
 
@@ -59,6 +60,11 @@ Rectangle {
         anchors.rightMargin: 16
         anchors.verticalCenter: parent.verticalCenter
         spacing: 16
+        IconButton {
+            objectName: "chatSearchButton"
+            name: "search"
+            onClicked: root.searchRequested()
+        }
         IconButton {
             id: menuButton
             objectName: "chatMenuButton"

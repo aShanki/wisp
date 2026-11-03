@@ -1394,3 +1394,33 @@ func TestDeleteMessageUnreadCount(t *testing.T) {
 		t.Fatalf("deleted last unread message: %+v", c)
 	}
 }
+
+// Equal timestamps must not drop or duplicate hits between pages.
+func TestSearchCursor(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	for i, id := range []string{"one", "two", "three", "four", "five"} {
+		put(t, s, txt(alice, id, 100+int64(i/3), "needle café"), false)
+	}
+	var ids []string
+	before := ""
+	for {
+		page, err := s.Search(ctx, api.SearchParams{Query: "needle cafe", Before: before, Limit: 2})
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, r := range page {
+			ids = append(ids, r.ID)
+		}
+		if len(page) < 2 {
+			break
+		}
+		before = page[len(page)-1].Cursor
+	}
+	if strings.Join(ids, ",") != "five,four,three,two,one" {
+		t.Fatal(ids)
+	}
+	if _, err := s.Search(ctx, api.SearchParams{Query: "needle", Before: "broken"}); !errors.Is(err, api.ErrInvalidParams) {
+		t.Fatal(err)
+	}
+}

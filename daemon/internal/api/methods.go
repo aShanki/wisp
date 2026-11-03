@@ -109,6 +109,7 @@ type SetPinnedParams struct {
 }
 
 type MessagesListParams struct {
+	Around string `json:"around"` // jump directly to this message and its older context
 	Chat   string `json:"chat"`
 	Before string `json:"before"` // message id; "" = newest page
 	Limit  int    `json:"limit"`  // default 50, max 200
@@ -187,9 +188,10 @@ type PathResult struct {
 }
 
 type SearchParams struct {
-	Query string `json:"query"`
-	Chat  string `json:"chat"`  // "" = all chats
-	Limit int    `json:"limit"` // default 50, max 200
+	Before string `json:"before"` // opaque keyset cursor from the last result
+	Query  string `json:"query"`
+	Chat   string `json:"chat"`  // "" = all chats
+	Limit  int    `json:"limit"` // default 50, max 200
 }
 
 type SearchResultList struct {

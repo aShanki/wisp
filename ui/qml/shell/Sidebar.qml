@@ -14,6 +14,9 @@ FocusScope {
         : Daemon.connectionState === "connecting" ? "Connecting to WhatsApp"
         : ""
 
+    readonly property bool searching: search.text.trim() !== ""
+    SearchModel { id: messages; query: search.text }
+
     signal settingsRequested()
     signal logoutRequested()
     signal chatChosen() // opened, or back to the open chat with Esc
@@ -41,6 +44,15 @@ FocusScope {
     }
 
     function move(delta) {
+        if (sidebar.searching && (list.count === 0 || messageList.activeFocus)) {
+            messageList.move(delta)
+            return
+        }
+        if (sidebar.searching && delta > 0 && list.currentIndex === list.count - 1 && messages.count > 0) {
+            messageList.currentIndex = 0
+            messageList.forceActiveFocus()
+            return
+        }
         if (list.count > 0)
             list.currentIndex = Math.max(0, Math.min(list.count - 1, list.currentIndex + delta))
     }
@@ -48,6 +60,10 @@ FocusScope {
     function openFromSearch() {
         if (list.currentIndex < 0)
             move(1)
+        if (list.count === 0 && sidebar.searching) {
+            messageList.choose()
+            return
+        }
         openCurrent()
         search.clear()
     }
@@ -193,7 +209,7 @@ FocusScope {
         x: 12
         width: parent.width - 24
         iconName: "search"
-        placeholderText: "Search"
+        placeholderText: "Search chats and messages"
         onTextChanged: {
             ChatList.filterText = text
             list.currentIndex = text !== "" && list.count > 0 ? 0 : -1
@@ -254,7 +270,7 @@ FocusScope {
         id: list
         anchors.top: sync.bottom
         anchors.topMargin: sync.visible ? 0 : 8
-        anchors.bottom: parent.bottom
+        height: sidebar.searching ? Math.min(contentHeight, sidebar.height * 0.35) : Math.max(0, sidebar.height - y)
         width: parent.width
         clip: true
         focus: true
@@ -311,13 +327,39 @@ FocusScope {
         Text {
             anchors.horizontalCenter: parent.horizontalCenter
             y: 48
-            visible: list.count === 0 && !ChatList.loading && Daemon.syncPercent < 0
+            visible: !sidebar.searching && list.count === 0 && !ChatList.loading && Daemon.syncPercent < 0
             text: search.text !== "" ? "No chats, contacts or messages found"
                 : ChatList.filter === ChatList.Unread ? "No unread chats"
                 : ChatList.filter === ChatList.Groups ? "No groups"
                 : "No chats yet"
             color: Theme.textMuted
             font.pixelSize: Theme.fontSize
+        }
+    }
+
+    Text {
+        id: messageLabel
+        anchors.top: list.bottom
+        x: 20
+        height: sidebar.searching ? 40 : 0
+        visible: sidebar.searching
+        verticalAlignment: Text.AlignVCenter
+        text: "Messages"
+        color: Theme.accent
+        font.pixelSize: 14
+    }
+    SearchResults {
+        id: messageList
+        objectName: "globalSearchResults"
+        anchors.top: messageLabel.bottom
+        anchors.bottom: parent.bottom
+        width: parent.width
+        visible: sidebar.searching
+        results: messages
+        onChosen: sidebar.chatChosen()
+        Keys.onEscapePressed: {
+            search.clear()
+            search.forceActiveFocus()
         }
     }
 

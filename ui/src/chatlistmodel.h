@@ -117,6 +117,8 @@ private:
 
     QHash<QString, Chat *> m_chats; // owned
     QList<Chat *> m_rows;
+    QList<Chat *> m_order; // sorted once after chat changes, reused across keystrokes
+    bool m_orderDirty = true;
 
     QString m_filter, m_folded;
     Filter m_kind = All;

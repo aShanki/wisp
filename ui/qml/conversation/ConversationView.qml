@@ -10,6 +10,7 @@ Rectangle {
     id: view
     color: Theme.conversation
 
+    property bool searching: false
     property var drafts: ({})
     property string draftJid: ""
     property int unseen: 0
@@ -72,7 +73,12 @@ Rectangle {
 
     Connections {
         target: Conversation
+        function onJumpRequested(id) {
+            Qt.callLater(function() { view.jumpTo(id) })
+        }
         function onJidChanged() {
+            view.searching = false
+            chatSearch.clear()
             if (view.draftJid !== "")
                 view.drafts[view.draftJid] = composer.text
             view.draftJid = Conversation.jid
@@ -113,6 +119,63 @@ Rectangle {
     ConversationHeader {
         id: header
         width: parent.width
+        onSearchRequested: {
+            view.searching = !view.searching
+            if (view.searching) chatSearch.forceActiveFocus()
+        }
+    }
+
+    Shortcut {
+        sequence: "Ctrl+F"
+        enabled: Conversation.jid !== ""
+        onActivated: { view.searching = true; chatSearch.forceActiveFocus(); chatSearch.selectAll() }
+    }
+    Rectangle {
+        id: searchPanel
+        z: 10
+        anchors.top: header.bottom
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        width: Math.min(360, parent.width)
+        visible: view.searching
+        color: Theme.panel
+        SearchModel { id: inChat; chat: Conversation.jid; query: view.searching ? chatSearch.text : "" }
+        Field {
+            id: chatSearch
+            objectName: "chatSearchField"
+            x: 12; y: 12
+            width: parent.width - 72
+            iconName: "search"
+            placeholderText: "Search in conversation"
+            Keys.onDownPressed: chatResults.move(1)
+            Keys.onUpPressed: chatResults.move(-1)
+            Keys.onReturnPressed: chatResults.choose()
+            Keys.onEnterPressed: chatResults.choose()
+            Keys.onEscapePressed: { view.searching = false; composer.focusInput() }
+        }
+        IconButton {
+            anchors.right: parent.right
+            y: 12
+            name: "close"
+            onClicked: { view.searching = false; composer.focusInput() }
+        }
+        SearchResults {
+            id: chatResults
+            objectName: "chatSearchResults"
+            anchors.top: chatSearch.bottom
+            anchors.bottom: parent.bottom
+            width: parent.width
+            results: inChat
+            onChosen: { view.searching = false; composer.focusInput() }
+        }
+    }
+    Button {
+        z: 9
+        anchors.top: header.bottom
+        anchors.horizontalCenter: parent.horizontalCenter
+        visible: Conversation.historical
+        text: "Back to latest messages"
+        onClicked: Conversation.latest()
     }
 
     ListView {

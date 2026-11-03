@@ -149,7 +149,20 @@ func (c *Core) patchChat(ctx context.Context, p api.ChatPatch) error {
 }
 
 func (c *Core) MessagesList(ctx context.Context, p api.MessagesListParams) (*api.MessagesListResult, error) {
-	msgs, more, err := c.store.ListMessages(ctx, p.Chat, p.Before, p.Limit)
+	before := p.Before
+	var target *api.Message
+	if p.Around != "" {
+		var err error
+		target, err = c.store.GetMessage(ctx, p.Chat, p.Around)
+		if err != nil {
+			return nil, err
+		}
+		before = p.Around
+	}
+	msgs, more, err := c.store.ListMessages(ctx, p.Chat, before, p.Limit)
+	if target != nil {
+		msgs = append([]api.Message{*target}, msgs...)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -242,6 +255,8 @@ func (c *Core) MediaThumb(ctx context.Context, p api.MessageRefParams) (*api.Pat
 }
 
 func (c *Core) Search(ctx context.Context, p api.SearchParams) (*api.SearchResultList, error) {
+	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
 	rs, err := c.store.Search(ctx, p)
 	if err != nil {
 		return nil, err
