@@ -34,6 +34,7 @@
 #include <QRegularExpression>
 #include <QTemporaryDir>
 #include <QTest>
+#include <QStyleHints>
 #include <QTextBlock>
 #include <QTextDocument>
 #include <QTextLayout>
@@ -575,6 +576,8 @@ void UiTest::selectMessageText()
 {
     openBigChat();
     type(u"Drag selection test message"_s);
+    key(Qt::Key_Return, Qt::ShiftModifier);
+    type(u"Second *formatted* line"_s);
     key(Qt::Key_Return);
     QQuickItem *view = findView(m_window->contentItem(), m_conv->messages());
     QVERIFY(view);
@@ -600,8 +603,27 @@ void UiTest::selectMessageText()
     key(Qt::Key_Escape);
     QCOMPARE(m_conv->jid(), kBig);
     QCOMPARE(body->property("selectedText").toString(), QString());
+    // A real double-click followed by a third press selects the entire
+    // multiline message, without the bubble's invisible timestamp spacer.
+    const QPoint word = start + QPoint(12, 0);
+    QTest::mouseDClick(m_window, Qt::LeftButton, {}, word, 20);
+    QTRY_COMPARE(body->property("selectedText").toString(), u"Drag"_s);
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, word, 20);
+    key(Qt::Key_C, Qt::ControlModifier);
+    QCOMPARE(QGuiApplication::clipboard()->text(), u"Drag selection test message\nSecond formatted line"_s);
+    // Qt starts a new word selection on the fourth click.
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, word);
+    QCOMPARE(body->property("selectedText").toString(), u"Drag"_s);
+    QTest::qWait(QGuiApplication::styleHints()->mouseDoubleClickInterval() + 30);
+    QTest::mouseDClick(m_window, Qt::LeftButton, {}, word, 20);
+    QTest::qWait(QGuiApplication::styleHints()->mouseDoubleClickInterval() + 30);
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, word, 20);
+    QCOMPARE(body->property("selectedText").toString(), QString());
     key(Qt::Key_K, Qt::ControlModifier);
     key(Qt::Key_Escape);
+    auto *composer = named(m_window->contentItem(), u"composerInput"_s);
+    QVERIFY(composer);
+    composer->forceActiveFocus();
 }
 
 void UiTest::reply()

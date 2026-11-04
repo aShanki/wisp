@@ -7,10 +7,10 @@ import Wisp
 
 Item {
     ListView.onPooled: {
-        selection.active = false
+        clearSelection()
         if (voiceLoader.item) voiceLoader.item.resetPlayback()
     }
-    onMsgIdChanged: if (selection) selection.active = false
+    onMsgIdChanged: if (selection) clearSelection()
     id: root
 
     required property string msgId
@@ -53,7 +53,10 @@ Item {
     signal imageClicked(string id, string source, int w, int h)
     signal quoteClicked(string id)
     signal selectionStarted()
-    function clearSelection() { selection.active = false }
+    function clearSelection() {
+        if (tripleClick) tripleClick.stop()
+        selection.active = false
+    }
 
     readonly property bool isSystem: type === "system"
     readonly property bool isDeleted: deleted || type === "revoked"
@@ -463,6 +466,12 @@ Item {
             property point start
             property bool dragged: false
             property int anchor: 0
+            property point doubleClickPoint
+            property bool wholeMessage: false
+            Timer {
+                id: tripleClick
+                interval: Qt.styleHints.mouseDoubleClickInterval
+            }
             function begin() {
                 root.selectionStarted()
                 selection.active = true
@@ -476,10 +485,18 @@ Item {
                 selector.forceActiveFocus()
                 start = Qt.point(mouse.x, mouse.y)
                 dragged = false
-                if (selection.active) (selection.item as TextEdit).deselect()
+                wholeMessage = tripleClick.running && Math.hypot(mouse.x - doubleClickPoint.x,
+                    mouse.y - doubleClickPoint.y) <= Qt.styleHints.mouseDoubleClickDistance
+                tripleClick.stop()
+                if (wholeMessage) {
+                    const editor = begin()
+                    // Leave out the invisible spaces reserved for the timestamp.
+                    editor.select(0, editor.getText(0, editor.length).replace(/\s+$/, "").length)
+                    dragged = true
+                } else if (selection.active) (selection.item as TextEdit).deselect()
             }
             onPositionChanged: mouse => {
-                if (!pressed) return
+                if (!pressed || wholeMessage) return
                 if (!dragged && Math.hypot(mouse.x - start.x, mouse.y - start.y) < Qt.styleHints.startDragDistance) return
                 const editor = dragged ? selection.item as TextEdit : begin()
                 dragged = true
@@ -491,11 +508,15 @@ Item {
                     if (link !== "") root.activateLink(link)
                 }
             }
-            onDoubleClicked: {
+            onDoubleClicked: mouse => {
+                if (wholeMessage) return
                 const editor = begin()
                 editor.selectWord()
                 dragged = true
+                doubleClickPoint = Qt.point(mouse.x, mouse.y)
+                tripleClick.restart()
             }
+            onCanceled: tripleClick.stop()
         }
 
         Rectangle {
