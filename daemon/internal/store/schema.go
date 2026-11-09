@@ -152,6 +152,43 @@ CREATE TABLE sticker_favorites (
 ALTER TABLE messages ADD COLUMN album TEXT NOT NULL DEFAULT ''; -- the album message's id, '' = none
 CREATE INDEX messages_album ON messages(chat, album, ts, seq) WHERE album <> '';
 `,
+	// 7: repair replies stored before 6, whose album quote was blank and
+	// whose album was unknown. Album items share their timestamp, so such a
+	// reply quotes the newest same-second photos/videos (2+) of the quoted
+	// sender before it; a group two albums would claim is left alone.
+	`
+CREATE TEMP TABLE album_fix AS
+WITH orphan AS (
+	SELECT r.chat, r.reply_id, r.reply_sender, r.ts FROM messages r
+	WHERE r.reply_id <> '' AND r.reply_type = 'text' AND r.reply_preview = ''
+		AND NOT EXISTS (SELECT 1 FROM messages o WHERE o.chat = r.chat AND o.id = r.reply_id)
+), pick AS (
+	SELECT o.chat, o.reply_id, o.reply_sender AS sender,
+		(SELECT m.ts FROM messages m WHERE m.chat = o.chat AND m.sender = o.reply_sender AND m.ts <= o.ts
+			AND m.type IN ('image', 'video') AND m.album = '' GROUP BY m.ts HAVING count(*) >= 2 ORDER BY m.ts DESC LIMIT 1) AS ts
+	FROM orphan o
+), best AS (
+	SELECT chat, reply_id, sender, min(ts) AS ts FROM pick WHERE ts IS NOT NULL GROUP BY chat, reply_id, sender
+)
+SELECT * FROM best b WHERE NOT EXISTS (SELECT 1 FROM best c
+	WHERE c.chat = b.chat AND c.sender = b.sender AND c.ts = b.ts AND c.reply_id <> b.reply_id);
+
+UPDATE messages SET album = f.reply_id FROM album_fix f
+WHERE messages.chat = f.chat AND messages.sender = f.sender AND messages.ts = f.ts
+	AND messages.type IN ('image', 'video') AND messages.album = '';
+
+UPDATE messages SET reply_type = c.typ, reply_preview = c.preview FROM (
+	SELECT chat, reply_id, CASE WHEN img = 0 THEN 'video' ELSE 'image' END AS typ,
+		CASE WHEN vid = 0 THEN '📷 ' || img || ' photo' || iif(img = 1, '', 's')
+			WHEN img = 0 THEN '🎥 ' || vid || ' video' || iif(vid = 1, '', 's')
+			ELSE '📷 ' || img || ' photo' || iif(img = 1, '', 's') || ', ' || vid || ' video' || iif(vid = 1, '', 's') END AS preview
+	FROM (SELECT f.chat, f.reply_id, sum(m.type = 'image') AS img, sum(m.type = 'video') AS vid
+		FROM album_fix f JOIN messages m ON m.chat = f.chat AND m.album = f.reply_id AND m.album <> '' GROUP BY f.chat, f.reply_id)
+) c
+WHERE messages.chat = c.chat AND messages.reply_id = c.reply_id AND messages.reply_type = 'text' AND messages.reply_preview = '';
+
+DROP TABLE album_fix;
+`,
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

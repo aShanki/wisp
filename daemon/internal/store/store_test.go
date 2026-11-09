@@ -426,6 +426,47 @@ func TestAlbumReply(t *testing.T) {
 	}
 }
 
+func TestAlbumRepair(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	blank := func(id string) *api.Quote { return &api.Quote{ID: id, Sender: alice, Type: api.MsgText} }
+	for _, m := range []*api.Message{
+		{ID: "old1", Timestamp: 5, Type: api.MsgImage}, {ID: "old2", Timestamp: 5, Type: api.MsgVideo},
+		{ID: "solo", Timestamp: 8, Type: api.MsgImage},
+		{ID: "a1", Timestamp: 10, Type: api.MsgImage}, {ID: "a2", Timestamp: 10, Type: api.MsgImage},
+		{ID: "r1", Timestamp: 20, Sender: bob, ReplyTo: blank("AL")},
+		{ID: "r2", Timestamp: 30, Sender: bob, ReplyTo: blank("AL")},
+		{ID: "b1", Timestamp: 40, Type: api.MsgImage}, {ID: "b2", Timestamp: 40, Type: api.MsgImage},
+		{ID: "r3", Timestamp: 50, Sender: bob, ReplyTo: blank("AL")}, // a later reply to the first album
+		{ID: "r4", Timestamp: 6, Sender: bob, ReplyTo: blank("OLD")},
+		{ID: "r5", Timestamp: 51, Sender: bob, ReplyTo: blank("X")},
+		{ID: "r6", Timestamp: 52, Sender: bob, ReplyTo: blank("Y")}, // both claim b1/b2: left alone
+	} {
+		m.Chat = group
+		if m.Sender == "" {
+			m.Sender = alice
+		}
+		if m.Type == "" {
+			m.Type, m.Text = api.MsgText, "x"
+		}
+		put(t, s, m, false)
+	}
+	if _, err := s.w.ExecContext(ctx, migrations[6]); err != nil {
+		t.Fatal(err)
+	}
+	want := map[string][2]string{"r1": {"a1", "📷 2 photos"}, "r2": {"a1", "📷 2 photos"}, "r3": {"a1", "📷 2 photos"},
+		"r4": {"old1", "📷 1 photo, 1 video"}, "r5": {"X", ""}, "r6": {"Y", ""}}
+	for id, w := range want {
+		m, err := s.GetMessage(ctx, group, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if q := m.ReplyTo; q.ID != w[0] || q.Preview != w[1] {
+			t.Errorf("%s: quote %+v, want %v", id, q, w)
+		}
+	}
+}
+
 func TestSenderNames(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()
