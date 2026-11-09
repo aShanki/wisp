@@ -15,13 +15,18 @@ import (
 
 const msgCols = `m.seq, m.chat, m.id, m.sender, m.push_name, m.from_me, m.ts, m.type, m.text, m.status,
 	m.edited, m.deleted, m.forwarded,
-	m.reply_id, m.reply_sender, m.reply_from_me, m.reply_type, m.reply_preview,
+	` + replyIDCol + `, m.reply_sender, m.reply_from_me, m.reply_type, m.reply_preview,
 	m.lat IS NOT NULL, COALESCE(m.lat, 0), COALESCE(m.lng, 0), m.loc_name,
 	md.msg IS NOT NULL, COALESCE(md.mime, ''), COALESCE(md.size, 0), COALESCE(md.width, 0), COALESCE(md.height, 0),
 	COALESCE(md.duration, 0), COALESCE(md.file_name, ''), COALESCE(md.has_thumb, 0), COALESCE(md.path, ''), md.waveform,
 	COALESCE(sc.full_name, ''), COALESCE(sc.push_name, ''), COALESCE(sc.business_name, ''),
 	COALESCE(rc.full_name, ''), COALESCE(rc.push_name, ''), COALESCE(rc.business_name, ''),
 	` + mentionsCol
+
+// replyIDCol is m.reply_id, or for a reply quoting an album (which has no
+// bubble of its own) the album's first item, so the quote jumps there.
+const replyIDCol = `COALESCE(CASE WHEN m.reply_type IN ('image', 'video') THEN (SELECT a.id FROM messages a
+		WHERE a.chat = m.chat AND a.album = m.reply_id AND a.album <> '' ORDER BY a.ts, a.seq LIMIT 1) END, m.reply_id)`
 
 // mentionsCol is m.mentions with each person's contact names joined (see
 // decodeMentions).
@@ -286,8 +291,8 @@ func rankSQL(col string) string {
 
 var upsertMsgSQL = `
 INSERT INTO messages(chat, id, sender, push_name, from_me, ts, type, text, status, edited, deleted, forwarded,
-	reply_id, reply_sender, reply_from_me, reply_type, reply_preview, lat, lng, loc_name, mentions)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	reply_id, reply_sender, reply_from_me, reply_type, reply_preview, lat, lng, loc_name, mentions, album)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(chat, id) DO UPDATE SET
 	sender    = CASE WHEN excluded.sender <> '' THEN excluded.sender ELSE sender END,
 	push_name = CASE WHEN excluded.push_name <> '' THEN excluded.push_name ELSE push_name END,
@@ -316,7 +321,8 @@ ON CONFLICT(chat, id) DO UPDATE SET
 	reply_preview = CASE WHEN excluded.reply_id <> '' THEN excluded.reply_preview ELSE reply_preview END,
 	lat       = CASE WHEN excluded.lat IS NOT NULL THEN excluded.lat ELSE lat END,
 	lng       = CASE WHEN excluded.lat IS NOT NULL THEN excluded.lng ELSE lng END,
-	loc_name  = CASE WHEN excluded.lat IS NOT NULL THEN excluded.loc_name ELSE loc_name END
+	loc_name  = CASE WHEN excluded.lat IS NOT NULL THEN excluded.loc_name ELSE loc_name END,
+	album     = CASE WHEN excluded.album <> '' THEN excluded.album ELSE album END
 RETURNING seq`
 
 func msgArgs(m *api.Message) []any {
@@ -344,7 +350,7 @@ func msgArgs(m *api.Message) []any {
 	}
 	return []any{m.Chat, m.ID, m.Sender, m.PushName, b2i(m.FromMe), m.Timestamp, typ, text, m.Status,
 		b2i(m.Edited), b2i(deleted), b2i(m.Forwarded),
-		rID, rSender, b2i(rFromMe), rType, rPreview, lat, lng, locName, mentions}
+		rID, rSender, b2i(rFromMe), rType, rPreview, lat, lng, locName, mentions, m.Album}
 }
 
 // mentionsJSON is the stored form of mentions: their JIDs, and whether one

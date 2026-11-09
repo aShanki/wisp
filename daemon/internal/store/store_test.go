@@ -405,6 +405,27 @@ func TestNameResolution(t *testing.T) {
 	}
 }
 
+func TestAlbumReply(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	put(t, s, &api.Message{ID: "i2", Chat: group, Sender: alice, Timestamp: 2, Type: api.MsgImage, Album: "AL"}, false)
+	put(t, s, &api.Message{ID: "i1", Chat: group, Sender: alice, Timestamp: 1, Type: api.MsgImage, Album: "AL"}, false)
+	put(t, s, &api.Message{ID: "i1", Chat: group, Sender: alice, Timestamp: 1, Type: api.MsgImage}, false) // re-sync keeps the album
+	put(t, s, &api.Message{ID: "r", Chat: group, Sender: bob, Timestamp: 3, Type: api.MsgText, Text: "fire",
+		ReplyTo: &api.Quote{ID: "AL", Sender: alice, Type: api.MsgImage, Preview: "📷 2 photos"}}, false)
+	put(t, s, &api.Message{ID: "r2", Chat: group, Sender: bob, Timestamp: 4, Type: api.MsgText, Text: "nice",
+		ReplyTo: &api.Quote{ID: "i2", Sender: alice, Type: api.MsgImage, Preview: "📷 Photo"}}, false)
+	for id, want := range map[string]string{"r": "i1", "r2": "i2"} {
+		m, err := s.GetMessage(ctx, group, id)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if q := m.ReplyTo; q == nil || q.ID != want {
+			t.Errorf("%s: quote %+v, want id %s", id, q, want)
+		}
+	}
+}
+
 func TestSenderNames(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()

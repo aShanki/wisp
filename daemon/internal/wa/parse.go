@@ -237,6 +237,7 @@ func (cv *converter) convert(info *types.MessageInfo, raw *waE2E.Message) parsed
 		Edited:    edited,
 	}
 	ci := fillContent(msg, m)
+	msg.Album = albumOf(raw, m)
 	if msg.Type == "" {
 		return parsed{} // nothing displayable (e.g. sender key distribution only)
 	}
@@ -334,6 +335,10 @@ func (cv *converter) quote(ci *waE2E.ContextInfo, chat types.JID) *api.Quote {
 	}
 	if qm := ci.GetQuotedMessage(); qm != nil {
 		inner, _ := unwrap(qm)
+		if a := inner.GetAlbumMessage(); a != nil {
+			q.Type, q.Preview = albumPreview(a)
+			return q
+		}
 		tmp := &api.Message{}
 		qci := fillContent(tmp, inner)
 		tmp.Mentions = cv.mentions(qci, &tmp.Text)
@@ -343,6 +348,39 @@ func (cv *converter) quote(ci *waE2E.ContextInfo, chat types.JID) *api.Quote {
 		}
 	}
 	return q
+}
+
+// albumOf is the id of the album a media message is an item of, from the
+// association on the message or the child wrapper around it; "" if none.
+func albumOf(raw, m *waE2E.Message) string {
+	for _, x := range []*waE2E.Message{m, raw.GetAssociatedChildMessage().GetMessage(), raw} {
+		a := x.GetMessageContextInfo().GetMessageAssociation()
+		if a.GetAssociationType() == waE2E.MessageAssociation_MEDIA_ALBUM {
+			if id := a.GetParentMessageKey().GetID(); id != "" {
+				return id
+			}
+		}
+	}
+	return ""
+}
+
+// albumPreview is the quote of a whole album, which carries only its counts:
+// "📷 2 photos", "🎥 3 videos", or both.
+func albumPreview(a *waE2E.AlbumMessage) (typ, preview string) {
+	plural := func(n uint32, one string) string {
+		if n == 1 {
+			return "1 " + one
+		}
+		return fmt.Sprintf("%d %ss", n, one)
+	}
+	img, vid := a.GetExpectedImageCount(), a.GetExpectedVideoCount()
+	switch {
+	case vid == 0:
+		return api.MsgImage, "📷 " + plural(max(img, 1), "photo")
+	case img == 0:
+		return api.MsgVideo, "🎥 " + plural(vid, "video")
+	}
+	return api.MsgImage, "📷 " + plural(img, "photo") + ", " + plural(vid, "video")
 }
 
 func unix(t time.Time) int64 {

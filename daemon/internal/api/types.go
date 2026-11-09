@@ -134,6 +134,7 @@ type Message struct {
 	MediaRef *MediaRef `json:"-"` // keys needed to download the media
 	Thumb    []byte    `json:"-"` // embedded JPEG thumbnail, if any
 	PushName string    `json:"-"` // sender's push name as seen on this message
+	Album    string    `json:"-"` // id of the album message this is an item of
 }
 
 // Quote is the replied-to message preview embedded in a message.

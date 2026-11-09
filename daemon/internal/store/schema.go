@@ -147,6 +147,11 @@ CREATE TABLE sticker_favorites (
 	file_length     INTEGER NOT NULL DEFAULT 0
 ) WITHOUT ROWID;
 `,
+	// 6: album items, so a reply quoting an album jumps to its first item.
+	`
+ALTER TABLE messages ADD COLUMN album TEXT NOT NULL DEFAULT ''; -- the album message's id, '' = none
+CREATE INDEX messages_album ON messages(chat, album, ts, seq) WHERE album <> '';
+`,
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

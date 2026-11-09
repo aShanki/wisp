@@ -113,6 +113,41 @@ func TestReply(t *testing.T) {
 	}
 }
 
+func TestAlbum(t *testing.T) {
+	cv := testConverter()
+	assoc := &waE2E.MessageContextInfo{MessageAssociation: &waE2E.MessageAssociation{
+		AssociationType:  waE2E.MessageAssociation_MEDIA_ALBUM.Enum(),
+		ParentMessageKey: &waCommon.MessageKey{ID: new("AL")},
+	}}
+	img := &waE2E.ImageMessage{Mimetype: new("image/jpeg")}
+	for _, raw := range []*waE2E.Message{
+		{ImageMessage: img, MessageContextInfo: assoc},
+		{AssociatedChildMessage: &waE2E.FutureProofMessage{Message: &waE2E.Message{ImageMessage: img}}, MessageContextInfo: assoc},
+	} {
+		if m := mustMsg(t, cv.convert(fromAlice("I1"), raw)); m.Type != api.MsgImage || m.Album != "AL" {
+			t.Fatalf("item %+v", m)
+		}
+	}
+	for _, c := range []struct {
+		img, vid uint32
+		typ, preview string
+	}{
+		{2, 0, api.MsgImage, "📷 2 photos"},
+		{0, 1, api.MsgVideo, "🎥 1 video"},
+		{1, 3, api.MsgImage, "📷 1 photo, 3 videos"},
+	} {
+		raw := &waE2E.Message{ExtendedTextMessage: &waE2E.ExtendedTextMessage{
+			Text: new("fire"),
+			ContextInfo: &waE2E.ContextInfo{StanzaID: new("AL"), Participant: new(alicePN.String()),
+				QuotedMessage: &waE2E.Message{AlbumMessage: &waE2E.AlbumMessage{ExpectedImageCount: &c.img, ExpectedVideoCount: &c.vid}}},
+		}}
+		q := mustMsg(t, cv.convert(fromAlice("R1"), raw)).ReplyTo
+		if q == nil || q.ID != "AL" || q.Type != c.typ || q.Preview != c.preview || q.SenderName != "Alice" {
+			t.Fatalf("quote %+v", q)
+		}
+	}
+}
+
 func TestImageWithThumb(t *testing.T) {
 	thumb := []byte{0xff, 0xd8, 0xff}
 	raw := &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
