@@ -1607,6 +1607,12 @@ void UiTest::scrollMotion()
             event.setTimestamp(clock.msecsSinceReference() + clock.elapsed());
             QGuiApplication::sendEvent(m_window, &event);
         };
+        // Scrolling down at the bottom never shows the jump-to-bottom button.
+        wheel(-120);
+        for (int frame = 0; frame < 25; ++frame) {
+            QTest::qWait(10);
+            QVERIFY2(view->property("pinned").toBool(), "Scrolling down at the bottom unpinned the list");
+        }
         // Ordinary notches and high-resolution wheel steps must both leave
         // the bottom, even when Qt discovers differently-sized cached rows.
         for (int angle : {120, 120, 30, 30, 120, 120}) {

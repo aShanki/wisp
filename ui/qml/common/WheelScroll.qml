@@ -63,21 +63,28 @@ WheelHandler {
         if (event.phase === Qt.ScrollEnd) {
             const v = linesInPixels ? 0 : swipeSpeed(now)
             swipe = []
-            if (v !== 0)
+            if (v !== 0 && clamped(flickable.contentY - Math.sign(v)) !== flickable.contentY)
                 flickable.flick(0, v)
             settled()
         } else if (event.phase === Qt.NoScrollPhase) {
             if (step === 0)
                 return
-            goal = clamped((glide.running ? goal : flickable.contentY) - (linesInPixels && event.pixelDelta.y !== 0 ? 2 * step : step))
+            const from = glide.running ? goal : flickable.contentY
+            const to = clamped(from - (linesInPixels && event.pixelDelta.y !== 0 ? 2 * step : step))
+            if (to === from)
+                return // already at that end: not a scroll away from it
+            goal = to
             scrolled()
             glide.restart()
         } else if (step !== 0) {
             glide.stop()
-            scrolled()
             if (event.phase !== Qt.ScrollMomentum)
                 swipe = swipe.filter(p => now - p[0] <= 100).concat([[now, step]])
-            flickable.contentY = clamped(flickable.contentY - step)
+            const to = clamped(flickable.contentY - step)
+            if (to !== flickable.contentY) {
+                scrolled()
+                flickable.contentY = to
+            }
         }
     }
 }
