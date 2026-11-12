@@ -187,6 +187,8 @@ void ConversationController::switchTo(const QString &jid)
     m_jid = jid;
     m_presence.clear();
     m_reply.clear();
+    if (const QString id = std::exchange(m_reactorsOf, {}); !id.isEmpty())
+        emit reactorsLoaded(id, {});
     m_early.clear();
     m_loaded = false;
     m_model->reset(jid);
@@ -348,14 +350,17 @@ void ConversationController::onEvent(const QString &name, const QJsonObject &par
         // Messages older than the loaded pages arrive with paging instead.
         const MessageModel::Msg *oldest = m_model->oldest();
         const bool unloaded = m_hasMore && oldest && msg["timestamp"_L1].toInteger() < oldest->timestamp;
-        if (name == "message.update"_L1)
+        if (name == "message.update"_L1) {
             m_model->update(msg);
-        else if (m_historical)
+            if (msg["id"_L1].toString() == m_reactorsOf)
+                fetchReactors();
+        } else if (m_historical) {
             return;
-        else if (!m_loaded)
+        } else if (!m_loaded) {
             m_early.append(msg);
-        else if (!unloaded && m_model->upsert(msg))
+        } else if (!unloaded && m_model->upsert(msg)) {
             emit newMessage(msg["fromMe"_L1].toBool());
+        }
     } else if (name == "message.remove"_L1) {
         if (params["chat"_L1].toString() != m_jid)
             return;
@@ -363,6 +368,10 @@ void ConversationController::onEvent(const QString &name, const QJsonObject &par
         if (m_reply.value(u"id"_s).toString() == id)
             cancelReply();
         m_model->remove(id);
+        if (id == m_reactorsOf) {
+            m_reactorsOf.clear();
+            emit reactorsLoaded(id, {});
+        }
     } else if (name == "media.progress"_L1) {
         if (params["chat"_L1].toString() == m_jid)
             m_model->setMediaProgress(params["id"_L1].toString(), params["percent"_L1].toInt());
@@ -579,6 +588,32 @@ void ConversationController::act(const QString &method, QJsonObject params, cons
 void ConversationController::react(const QString &id, const QString &emoji)
 {
     act(u"messages.react"_s, {{u"id"_s, id}, {u"emoji"_s, emoji}}, u"Reaction not sent"_s);
+}
+
+void ConversationController::watchReactors(const QString &id)
+{
+    m_reactorsOf = id;
+    fetchReactors();
+}
+
+void ConversationController::fetchReactors()
+{
+    if (m_reactorsOf.isEmpty() || m_jid.isEmpty())
+        return;
+    const QString chat = m_jid, id = m_reactorsOf;
+    RpcClient::instance()->call(u"messages.reactions"_s, {{u"chat"_s, chat}, {u"id"_s, id}},
+                                [this, chat, id](const QJsonValue &result, const QJsonObject &e) {
+        if (chat != m_jid || id != m_reactorsOf)
+            return; // closed, or another message's, meanwhile
+        if (!e.isEmpty())
+            fail(e, u"Reactions not loaded"_s);
+        QVariantList reactors;
+        for (const QJsonValue &v : result["reactors"_L1].toArray())
+            reactors.append(QVariantMap{{u"jid"_s, v["jid"_L1].toString()}, {u"name"_s, v["name"_L1].toString()},
+                                        {u"phone"_s, v["phone"_L1].toString()}, {u"emoji"_s, v["emoji"_L1].toString()},
+                                        {u"mine"_s, v["mine"_L1].toBool()}});
+        emit reactorsLoaded(id, reactors);
+    });
 }
 
 bool ConversationController::canEdit(const QString &id) const

@@ -80,6 +80,10 @@ public:
     Q_INVOKABLE void copyImage(const QString &id);
     // emoji "" removes our reaction.
     Q_INVOKABLE void react(const QString &id, const QString &emoji);
+    // Who reacted to a message: reactorsLoaded() gives them, and again each
+    // time the message changes, until another id or "" is watched. Each is
+    // {jid, name, phone, emoji, mine}; none once the message has no reactions.
+    Q_INVOKABLE void watchReactors(const QString &id);
     // Editing: our sent text messages, within WhatsApp's 15 minutes.
     Q_INVOKABLE bool canEdit(const QString &id) const;
     // The message's text as typed, with "@Name" for mentions.
@@ -101,6 +105,7 @@ signals:
     void opened();
     void newMessage(bool fromMe);
     void videoReady(const QString &id, const QUrl &url, bool gif);
+    void reactorsLoaded(const QString &id, const QVariantList &reactors);
 
 private:
     explicit ConversationController(QObject *parent = nullptr);
@@ -119,6 +124,7 @@ private:
     void fail(const QJsonObject &error, const QString &what);
     void act(const QString &method, QJsonObject params, const QString &what);
     void withMediaPath(const QString &id, std::function<void(const QString &)> done);
+    void fetchReactors();
 
     MessageModel *m_model;
     AttachmentModel *m_attachments;
@@ -134,6 +140,7 @@ private:
     QList<QJsonObject> m_early; // message.new that raced the first page
 
     QVariantMap m_reply; // empty when not replying
+    QString m_reactorsOf; // the message whose reactions are shown, if any
 
     QString m_typingChat; // where we last sent typing=true
     QTimer *m_typingIdle;

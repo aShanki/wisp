@@ -52,6 +52,7 @@ Item {
     property bool flash: false // set while the view shows this message as a reply's original
     signal imageClicked(string id, string source, int w, int h)
     signal quoteClicked(string id)
+    signal reactionsClicked(Item pill) // to list who reacted, beside the pill
     signal selectionStarted()
     function clearSelection() {
         if (tripleClick) tripleClick.stop()
@@ -581,6 +582,8 @@ Item {
         x: root.fromMe ? bubble.x + bubble.width - width - 6 : bubble.x + 6
         y: bubble.y + bubble.height - 4
         sourceComponent: Rectangle {
+            id: pill
+            objectName: "reactionPill"
             readonly property int total: root.reactions.reduce((n, r) => n + r.count, 0)
             width: emojis.width + (count.visible ? count.implicitWidth + 7 : 0) + 10
             height: 26
@@ -614,6 +617,11 @@ Item {
                 text: parent.total
                 color: Theme.bubbleMeta
                 font.pixelSize: 14
+            }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.PointingHandCursor
+                onClicked: root.reactionsClicked(pill)
             }
         }
     }

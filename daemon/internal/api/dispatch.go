@@ -187,6 +187,12 @@ var handlers = map[string]handler{
 		}
 		return b.MessagesReact(ctx, p)
 	}),
+	MMessagesReactions: with(func(b Backend, ctx context.Context, p MessageRefParams) (*ReactionsResult, error) {
+		if err := requireRef(p.Chat, p.ID); err != nil {
+			return nil, err
+		}
+		return b.MessagesReactions(ctx, p)
+	}),
 	MMessagesEdit: withOK(func(b Backend, ctx context.Context, p EditParams) error {
 		if err := requireRef(p.Chat, p.ID); err != nil {
 			return err

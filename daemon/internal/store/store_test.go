@@ -855,6 +855,59 @@ func TestReactions(t *testing.T) {
 	}
 }
 
+func TestListReactors(t *testing.T) {
+	s := newStore(t)
+	ctx := context.Background()
+	put(t, s, txt(group, "m", 1, "react to me"), false)
+	if err := s.PutContacts(ctx, []api.Contact{{JID: alice, FullName: "Alice Nguyen", PushName: "Ali"},
+		{JID: bob, PushName: "Bobby"}}); err != nil {
+		t.Fatal(err)
+	}
+	const lid = "123456789@lid"
+	for _, r := range []api.EvReaction{
+		{Sender: alice, Emoji: "👍", Ts: 10},
+		{Sender: carol, Emoji: "❤️", Ts: 11},
+		{Sender: bob, Emoji: "❤️", Ts: 12},
+		{Sender: lid, Emoji: "❤️", Ts: 13},
+		{Sender: "61400000000:3@s.whatsapp.net", FromMe: true, Emoji: "👍", Ts: 14},
+	} {
+		r.Chat, r.ID = group, "m"
+		if _, err := s.ApplyReaction(ctx, r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := s.ListReactors(ctx, group, "m")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Us, then ❤️ (three) before 👍 (two), each newest first. Bob is known
+	// by push name only, so his number shows too; Carol and the LID are unnamed.
+	want := []api.Reactor{
+		{Name: "You", Emoji: "👍", Mine: true, Ts: 14},
+		{JID: lid, Emoji: "❤️", Ts: 13},
+		{JID: bob, Name: "Bobby", Phone: "+61400000002", Emoji: "❤️", Ts: 12},
+		{JID: carol, Phone: "+61400000003", Emoji: "❤️", Ts: 11},
+		{JID: alice, Name: "Alice Nguyen", Emoji: "👍", Ts: 10},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("reactors\n got %+v\nwant %+v", got, want)
+	}
+	if m := mustMsg(t, s, group, "m"); !reflect.DeepEqual(m.Reactions, []api.Reaction{rx("❤️", 3, false), rx("👍", 2, true)}) {
+		t.Errorf("pill order differs from the list's: %+v", m.Reactions)
+	}
+
+	// None for a message that is unknown or was deleted for everyone.
+	if got, err := s.ListReactors(ctx, group, "nope"); err != nil || got == nil || len(got) != 0 {
+		t.Errorf("unknown message: %+v %v", got, err)
+	}
+	if _, err := s.ApplyRevoke(ctx, group, "m"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := s.ListReactors(ctx, group, "m"); err != nil || len(got) != 0 {
+		t.Errorf("revoked message: %+v %v", got, err)
+	}
+}
+
 func TestMarkReadUnreadIncoming(t *testing.T) {
 	s := newStore(t)
 	ctx := context.Background()

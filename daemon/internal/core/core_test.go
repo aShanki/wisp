@@ -976,6 +976,37 @@ func TestAppStateResyncOnce(t *testing.T) {
 	}
 }
 
+func TestMessagesReactions(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	// Who reacted: us under our own JID, a saved contact by name, and a
+	// stranger by number.
+	const stranger = "61400000077@s.whatsapp.net"
+	h.c.handle(api.EvMessage{Msg: incoming(group, "G1", alice, "lunch?")})
+	if err := h.st.PutContacts(ctx, []api.Contact{{JID: alice, FullName: "Alice Nguyen"}}); err != nil {
+		t.Fatal(err)
+	}
+	h.c.handle(api.EvReaction{Chat: group, ID: "G1", Sender: alice, Emoji: "❤️", Ts: 5})
+	h.c.handle(api.EvReaction{Chat: group, ID: "G1", Sender: stranger, Emoji: "❤️", Ts: 6})
+	if err := h.c.MessagesReact(ctx, api.ReactParams{Chat: group, ID: "G1", Emoji: "👍"}); err != nil {
+		t.Fatal(err)
+	}
+	who, err := h.c.MessagesReactions(ctx, api.MessageRefParams{Chat: group, ID: "G1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range who.Reactors {
+		who.Reactors[i].Ts = 0
+	}
+	if want := []api.Reactor{
+		{JID: selfJID, Name: "You", Emoji: "👍", Mine: true},
+		{JID: stranger, Name: "+61400000077", Emoji: "❤️"},
+		{JID: alice, Name: "Alice Nguyen", Emoji: "❤️"},
+	}; !reflect.DeepEqual(who.Reactors, want) {
+		t.Errorf("reactors\n got %+v\nwant %+v", who.Reactors, want)
+	}
+}
+
 func TestReactRevokeDeleteForMe(t *testing.T) {
 	ctx := context.Background()
 	h := newHarness(t)

@@ -22,6 +22,7 @@
 #include <QGuiApplication>
 #include <QImage>
 #include <QJsonArray>
+#include <QSet>
 #include <QMimeData>
 #include <QMediaPlayer>
 #include <QPalette>
@@ -140,6 +141,7 @@ private slots:
     void mentionRendering();
     void replyJump();
     void narrowWhileLoading();
+    void reactionDetails();
     void messageActions();
     void unlinkClosesChat();
 
@@ -908,6 +910,226 @@ void UiTest::hoverMenu()
     QMetaObject::invokeMethod(menu, "close");
     QTRY_VERIFY(!menu->property("visible").toBool());
     QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+}
+
+// A click on a message's reaction pill lists who reacted, as WhatsApp Web
+// does. A chip, or our own row, changes our reaction, and the list follows.
+void UiTest::reactionDetails()
+{
+    const QString group = u"120363000000000002@g.us"_s; // five members and us
+    m_conv->open(group);
+    const MessageModel *model = m_conv->messages();
+    QTRY_VERIFY(m_conv->jid() == group && !m_conv->loading() && model->rowCount() > 0);
+    QQuickItem *view = findView(m_window->contentItem(), model);
+    QQuickItem *loader = named(m_window->contentItem(), u"reactorsLoader"_s);
+    QVERIFY(view && loader);
+
+    // A message several of the others reacted to, and one nobody did.
+    QString target, plain;
+    QJsonArray pillWas;
+    bool done = false;
+    RpcClient::instance()->call(u"messages.list"_s, {{u"chat"_s, group}, {u"limit"_s, 200}},
+                                [&](const QJsonValue &r, const QJsonObject &) {
+        for (const QJsonValue &m : r["messages"_L1].toArray()) {
+            if (m["type"_L1] != "text"_L1 || m["deleted"_L1].toBool())
+                continue;
+            const QJsonArray rs = m["reactions"_L1].toArray();
+            int total = 0;
+            bool mine = false;
+            for (const QJsonValue &x : rs) {
+                total += x["count"_L1].toInt();
+                mine = mine || x["mine"_L1].toBool();
+            }
+            if (target.isEmpty() && total >= 2 && !mine) {
+                target = m["id"_L1].toString();
+                pillWas = rs;
+            } else if (plain.isEmpty() && rs.isEmpty()) {
+                plain = m["id"_L1].toString();
+            }
+        }
+        done = true;
+    });
+    QTRY_VERIFY(done);
+    QVERIFY(!target.isEmpty() && !plain.isEmpty());
+    int others = 0;
+    QStringList emojis;
+    for (const QJsonValue &x : std::as_const(pillWas)) {
+        others += x["count"_L1].toInt();
+        emojis << x["emoji"_L1].toString();
+    }
+
+    // Scrolls to message id and returns its pill once it shows.
+    const auto pillOf = [&](const QString &id) {
+        QQuickItem *pill = nullptr;
+        emit m_conv->jumpRequested(id);
+        [&] {
+            QTRY_VERIFY_WITH_TIMEOUT([&] {
+                QQuickItem *row = itemAt(view, model->indexOf(id));
+                pill = row ? named(row, u"reactionPill"_s) : nullptr;
+                return pill && !view->property("moving").toBool() && sceneRect(view).contains(sceneRect(pill));
+            }(), 10000);
+        }();
+        return pill;
+    };
+    const auto details = [&] { return loader->property("item").value<QObject *>(); };
+    const auto shown = [&] { return details() && details()->property("opened").toBool(); };
+    const auto people = [&] { return details()->property("people").toList(); };
+    const auto content = [&] { return details()->property("contentItem").value<QQuickItem *>(); };
+    std::function<void(QQuickItem *, const QString &, QList<QQuickItem *> &)> collect =
+        [&](QQuickItem *root, const QString &name, QList<QQuickItem *> &out) {
+        for (QQuickItem *child : root->childItems()) {
+            if (child->objectName() == name)
+                out << child;
+            collect(child, name, out);
+        }
+    };
+    const auto all = [&](const QString &name) {
+        QList<QQuickItem *> out;
+        collect(content(), name, out);
+        return out;
+    };
+    const auto click = [&](QQuickItem *item) {
+        frame();
+        QTest::mouseClick(m_window, Qt::LeftButton, {}, sceneRect(item).center().toPoint());
+    };
+    const auto mineIn = [&](const QString &id) {
+        for (const QVariant &r : model->index(model->indexOf(id), 0).data(MessageModel::ReactionsRole).toList())
+            if (r.toMap().value(u"mine"_s).toBool())
+                return r.toMap().value(u"emoji"_s).toString();
+        return QString();
+    };
+
+    QQuickItem *pill = pillOf(target);
+    QVERIFY(pill);
+    QVERIFY(!details()); // built on first use
+    click(pill);
+    QTRY_VERIFY(shown());
+    QTRY_COMPARE(people().size(), others);
+    frame();
+
+    // The pane hangs below the pill, from its left edge (its right edge
+    // under our own messages), inside the window; above the pill or moved in
+    // where it would not fit.
+    const QRectF pane = sceneRect(content()), at = sceneRect(pill);
+    const QSizeF room = m_window->contentItem()->size();
+    const bool ours = itemAt(view, model->indexOf(target))->property("fromMe").toBool();
+    const auto same = [](qreal a, qreal b) { return std::abs(a - b) < 0.5; };
+    QCOMPARE(pane.width(), 375.0);
+    QVERIFY2(QRectF(QPointF(8, 8), room - QSizeF(16, 16)).contains(pane), qPrintable(str(pane)));
+    QVERIFY2(same(pane.top(), at.bottom() + 4) || same(pane.bottom(), at.top() - 4) || same(pane.bottom(), room.height() - 8),
+             qPrintable(str(pane) + u" by "_s + str(at)));
+    QVERIFY2((ours ? same(pane.right(), at.right()) : same(pane.left(), at.left()))
+                 || same(pane.left(), 8) || same(pane.right(), room.width() - 8),
+             qPrintable(str(pane) + u" by "_s + str(at)));
+
+    // Its count, a chip per emoji in the pill's order after the + chip, and
+    // a named row each, none of them ours.
+    QCOMPARE(named(content(), u"reactionCount"_s)->property("text").toString(), u"%1 reactions"_s.arg(others));
+    QList<QQuickItem *> chips = all(u"reactionChip"_s);
+    QCOMPARE(chips.size(), emojis.size());
+    QQuickItem *add = named(content(), u"addReaction"_s);
+    QVERIFY(add && sceneRect(add).right() < sceneRect(chips.first()).left());
+    for (qsizetype i = 0; i < chips.size(); ++i) {
+        QCOMPARE(chips[i]->property("emoji").toString(), emojis[i]);
+        QCOMPARE(chips[i]->property("modelData").toMap().value(u"count"_s).toInt(), pillWas[i]["count"_L1].toInt());
+        QVERIFY(!chips[i]->property("selected").toBool());
+    }
+    QQuickItem *rows = named(content(), u"reactorList"_s);
+    QVERIFY(rows);
+    QCOMPARE(rows->property("count").toInt(), others);
+    QVERIFY(all(u"reactorMe"_s).isEmpty());
+    QSet<QString> names;
+    for (QQuickItem *row : all(u"reactor"_s)) {
+        QVERIFY(!row->property("name").toString().isEmpty());
+        QVERIFY(emojis.contains(row->property("emoji").toString()));
+        names << row->property("name").toString();
+    }
+    QVERIFY(names.size() >= std::min(others, 5)); // the rows that fit, each someone else
+    QCOMPARE(names.size(), all(u"reactor"_s).size());
+    shoot(u"reaction-details"_s);
+
+    // A chip reacts with its emoji: we lead the list, and can take it back.
+    click(chips.first());
+    QTRY_COMPARE(people().size(), others + 1);
+    QVERIFY(shown());
+    QCOMPARE(mineIn(target), emojis.first());
+    QCOMPARE(people().first().toMap().value(u"name"_s).toString(), u"You"_s);
+    // Taller by our row, it stays on the side of the pill it opened on.
+    frame();
+    const QRectF grown = sceneRect(content());
+    QVERIFY2(same(pane.top(), at.bottom() + 4) ? grown.top() >= at.bottom() || same(grown.bottom(), room.height() - 8)
+                                               : same(grown.bottom(), pane.bottom()),
+             qPrintable(str(grown) + u" was "_s + str(pane)));
+    QCOMPARE(named(content(), u"reactionCount"_s)->property("text").toString(), u"%1 reactions"_s.arg(others + 1));
+    QQuickItem *me = nullptr;
+    QTRY_VERIFY([&] {
+        me = all(u"reactorMe"_s).value(0);
+        return me && sceneRect(me).top() < sceneRect(all(u"reactor"_s).value(0)).top();
+    }());
+    QCOMPARE(me->property("detail").toString(), u"Click to remove"_s);
+    QCOMPARE(me->property("emoji").toString(), emojis.first());
+    chips = all(u"reactionChip"_s);
+    QVERIFY(chips.first()->property("selected").toBool());
+    QCOMPARE(chips.first()->property("modelData").toMap().value(u"count"_s).toInt(), pillWas[0]["count"_L1].toInt() + 1);
+    shoot(u"reaction-details-mine"_s);
+    click(me);
+    QTRY_COMPARE(people().size(), others);
+    QVERIFY(shown());
+    QCOMPARE(mineIn(target), QString());
+    QVERIFY(all(u"reactorMe"_s).isEmpty());
+
+    // A click on the pill, unless a short window put the pane over it,
+    // closes the pane rather than opening it again; so do a click elsewhere
+    // and Esc.
+    frame();
+    if (sceneRect(content()).intersects(sceneRect(pill)))
+        key(Qt::Key_Escape);
+    else
+        click(pill);
+    QTRY_VERIFY(!shown());
+    QTest::qWait(50);
+    QVERIFY(!shown());
+    QTRY_VERIFY(focused() && focused()->inherits("QQuickTextEdit"));
+    click(pill);
+    QTRY_VERIFY(shown());
+    frame();
+    const QRectF open = sceneRect(content());
+    QTest::mouseClick(m_window, Qt::LeftButton, {},
+                      QPointF(open.left() > 40 ? open.left() - 20 : open.right() + 20, open.center().y()).toPoint());
+    QTRY_VERIFY(!shown());
+    click(pill);
+    QTRY_VERIFY(shown());
+    key(Qt::Key_Escape);
+    QTRY_VERIFY(!shown());
+    QCOMPARE(m_conv->jid(), group); // Esc closed the pane, not the chat
+
+    // The + chip offers every emoji. With ours the only reaction, the pane
+    // says so and closes when we take it back.
+    click(pill);
+    QTRY_VERIFY(shown());
+    click(named(content(), u"addReaction"_s));
+    QObject *panel = m_window->findChild<QObject *>(u"reactPanel"_s);
+    QVERIFY(panel);
+    QTRY_VERIFY(panel->property("opened").toBool() && !shown());
+    QCOMPARE(panel->property("msgId").toString(), target);
+    QMetaObject::invokeMethod(panel, "close");
+    QTRY_VERIFY(!panel->property("visible").toBool());
+
+    m_conv->react(plain, u"🎉"_s);
+    QTRY_COMPARE(mineIn(plain), u"🎉"_s);
+    pill = pillOf(plain);
+    QVERIFY(pill);
+    click(pill);
+    QTRY_VERIFY(shown());
+    QCOMPARE(people().size(), 1);
+    QCOMPARE(named(content(), u"reactionCount"_s)->property("text").toString(), u"1 reaction"_s);
+    QTRY_VERIFY(all(u"reactorMe"_s).size() == 1);
+    click(all(u"reactorMe"_s).first());
+    QTRY_VERIFY(!shown());
+    QTRY_COMPARE(mineIn(plain), QString());
+
+    m_conv->open(kBig);
+    QTRY_VERIFY(m_conv->jid() == kBig && !m_conv->loading() && m_conv->messages()->rowCount() > 0);
 }
 
 // React, Delete for everyone and Delete for me from a message's menu. Last

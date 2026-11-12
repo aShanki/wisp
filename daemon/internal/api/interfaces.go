@@ -34,6 +34,8 @@ type Backend interface {
 	MessagesSendMedia(ctx context.Context, p SendMediaParams) (*Message, error)
 	MessagesSendSticker(ctx context.Context, p SendStickerParams) (*Message, error)
 	MessagesReact(ctx context.Context, p ReactParams) error
+	// MessagesReactions lists who reacted to a message, and with what.
+	MessagesReactions(ctx context.Context, p MessageRefParams) (*ReactionsResult, error)
 	// MessagesEdit changes the text of one of our text messages for everyone.
 	MessagesEdit(ctx context.Context, p EditParams) error
 	// MessagesRevoke deletes one of our messages for everyone.
@@ -112,6 +114,10 @@ type Store interface {
 	ApplyEdit(ctx context.Context, chat, id, text string, mentions []Mention, ts int64) (*Message, error)
 	ApplyRevoke(ctx context.Context, chat, id string) (*Message, error)
 	ApplyReaction(ctx context.Context, r EvReaction) (*Message, error)
+	// ListReactors lists a message's reactions per person, in the order of
+	// ReactionsResult. Ours has JID ""; a person we have no name for has
+	// Name "". None for unknown or deleted messages.
+	ListReactors(ctx context.Context, chat, id string) ([]Reactor, error)
 	// DeleteMessage removes a message, its media row and reactions, and
 	// repoints the chat's last message.
 	DeleteMessage(ctx context.Context, chat, id string) error

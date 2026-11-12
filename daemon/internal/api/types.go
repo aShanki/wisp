@@ -162,6 +162,16 @@ type Reaction struct {
 	Mine  bool   `json:"mine"`
 }
 
+// Reactor is one person's reaction to a message (messages.reactions).
+type Reactor struct {
+	JID   string `json:"jid"`
+	Name  string `json:"name"`  // "You" for ours
+	Phone string `json:"phone"` // "+61400000001" for someone outside our address book, else ""
+	Emoji string `json:"emoji"`
+	Mine  bool   `json:"mine"`
+	Ts    int64  `json:"ts"` // unix seconds, 0 if unknown
+}
+
 // MediaInfo is the UI-visible description of a message attachment.
 type MediaInfo struct {
 	Mime     string `json:"mime"`

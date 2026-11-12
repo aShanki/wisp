@@ -347,6 +347,16 @@ func mention(m *api.Message, jid string) {
 	m.Mentions = append(m.Mentions, api.Mention{JID: jid, Name: nameOf(jid), Me: jid == selfJID})
 }
 
+// inAddressBook reports whether jid is a person we have saved a name for.
+func inAddressBook(jid string) bool {
+	for p := range people {
+		if personJID(p) == jid {
+			return people[p].name != ""
+		}
+	}
+	return false
+}
+
 // nameOf names someone the way the daemon resolves names.
 func nameOf(jid string) string {
 	if jid == selfJID {
@@ -387,7 +397,14 @@ func (cs *chatSpec) gen(i int) api.Message {
 		}
 		m.Reactions = append(m.Reactions, api.Reaction{Emoji: e, Count: count, Mine: mine})
 		if e2 := pick(r, reactionEmojis); cs.isGroup() && e2 != e && r.IntN(3) == 0 {
-			m.Reactions = append(m.Reactions, api.Reaction{Emoji: e2, Count: 1 + r.IntN(3)})
+			// Everyone reacts once: no more than the members who haven't.
+			others := count
+			if mine {
+				others--
+			}
+			if n := min(1+r.IntN(3), len(cs.members)-others); n > 0 {
+				m.Reactions = append(m.Reactions, api.Reaction{Emoji: e2, Count: n})
+			}
 		}
 	}
 	return m

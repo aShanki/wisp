@@ -22,6 +22,7 @@ const (
 	MMessagesSendMedia   = "messages.sendMedia"
 	MMessagesSendSticker = "messages.sendSticker"
 	MMessagesReact       = "messages.react"
+	MMessagesReactions   = "messages.reactions"
 	MMessagesEdit        = "messages.edit"
 	MMessagesRevoke      = "messages.revoke"
 	MMessagesDeleteForMe = "messages.deleteForMe"
@@ -129,6 +130,12 @@ type ReactParams struct {
 	Chat  string `json:"chat"`
 	ID    string `json:"id"`
 	Emoji string `json:"emoji"` // "" removes our reaction
+}
+
+// ReactionsResult lists who reacted to a message: us first, then the
+// emojis in the order of the message's Reactions, newest reactor first.
+type ReactionsResult struct {
+	Reactors []Reactor `json:"reactors"`
 }
 
 // EditParams replaces the text of one of our text messages.

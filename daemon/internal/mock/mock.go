@@ -527,6 +527,48 @@ func (b *Backend) MessagesReact(ctx context.Context, p api.ReactParams) error {
 	})
 }
 
+// MessagesReactions gives each reaction's count its people: us, the other
+// person in a 1:1 chat, and members of a group picked by the message.
+func (b *Backend) MessagesReactions(ctx context.Context, p api.MessageRefParams) (*api.ReactionsResult, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	c, err := b.chat(p.Chat)
+	if err != nil {
+		return nil, err
+	}
+	at, ok := c.pos(p.ID)
+	if !ok || c.gone[p.ID] {
+		return nil, fmt.Errorf("message %s: %w", p.ID, api.ErrNotFound)
+	}
+	m := c.at(at)
+	var ours, others []api.Reactor
+	people := []string{c.spec.jid}
+	if c.spec.isGroup() {
+		people = people[:0]
+		for _, i := range rng(c.spec.seed^0x4eac, uint64(at)).Perm(len(c.spec.members)) {
+			people = append(people, personJID(c.spec.members[i]))
+		}
+	}
+	next := 0
+	for _, r := range m.Reactions {
+		n := r.Count
+		if r.Mine {
+			ours = append(ours, api.Reactor{JID: selfJID, Name: "You", Emoji: r.Emoji, Mine: true, Ts: m.Timestamp + 60})
+			n--
+		}
+		for ; n > 0; n-- {
+			jid := people[next%len(people)]
+			next++
+			who := api.Reactor{JID: jid, Name: nameOf(jid), Emoji: r.Emoji, Ts: m.Timestamp + 60 + int64(next)}
+			if phone := "+" + strings.TrimSuffix(jid, "@s.whatsapp.net"); !inAddressBook(jid) && phone != who.Name {
+				who.Phone = phone
+			}
+			others = append(others, who)
+		}
+	}
+	return &api.ReactionsResult{Reactors: append(append([]api.Reactor{}, ours...), others...)}, nil
+}
+
 func (b *Backend) MessagesEdit(ctx context.Context, p api.EditParams) error {
 	return b.change(p.Chat, p.ID, func(m *api.Message) error {
 		if !m.FromMe || m.Deleted || m.Type != api.MsgText {

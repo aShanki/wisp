@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
@@ -284,6 +285,68 @@ func TestGroupMembers(t *testing.T) {
 		if err := c.call(api.MGroupsMembers, p, nil); err == nil || err.Code != api.CodeInvalidParams {
 			t.Errorf("groups.members %v: %v", p, err)
 		}
+	}
+}
+
+func TestReactions(t *testing.T) {
+	c := dial(t, start(t, mock.Config{Seed: 1}))
+	self := hello(c).SelfJID
+	const family = "120363000000000002@g.us"
+	var page api.MessagesListResult
+	c.must(api.MMessagesList, api.MessagesListParams{Chat: family, Limit: 200}, &page)
+	checked := 0
+	for _, m := range page.Messages {
+		if len(m.Reactions) == 0 {
+			continue
+		}
+		checked++
+		var res api.ReactionsResult
+		c.must(api.MMessagesReactions, api.MessageRefParams{Chat: family, ID: m.ID}, &res)
+		// The list adds up to the pill: its emojis, their counts and ours.
+		counts, seen := map[string]int{}, map[string]bool{}
+		for i, r := range res.Reactors {
+			counts[r.Emoji]++
+			if r.Name == "" || r.JID == "" || seen[r.JID] || r.Mine != (r.JID == self) || (r.Mine && (i != 0 || r.Name != "You")) {
+				t.Fatalf("%s: reactor %d = %+v", m.ID, i, r)
+			}
+			seen[r.JID] = true
+		}
+		for _, r := range m.Reactions {
+			if counts[r.Emoji] != r.Count {
+				t.Fatalf("%s: %d reactors with %s, want %d: %+v", m.ID, counts[r.Emoji], r.Emoji, r.Count, res.Reactors)
+			}
+			delete(counts, r.Emoji)
+		}
+		if len(counts) != 0 {
+			t.Fatalf("%s: reactors with emojis not on the message: %v", m.ID, counts)
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no message with reactions in the newest 200")
+	}
+
+	// Ours joins the list when we react and leaves when we take it back.
+	id := page.Messages[0].ID
+	var res api.ReactionsResult
+	c.must(api.MMessagesReact, api.ReactParams{Chat: family, ID: id, Emoji: "🔥"}, nil)
+	c.must(api.MMessagesReactions, api.MessageRefParams{Chat: family, ID: id}, &res)
+	if len(res.Reactors) == 0 || !res.Reactors[0].Mine || res.Reactors[0].Emoji != "🔥" {
+		t.Fatalf("after reacting: %+v", res.Reactors)
+	}
+	c.must(api.MMessagesReact, api.ReactParams{Chat: family, ID: id}, nil)
+	res = api.ReactionsResult{}
+	c.must(api.MMessagesReactions, api.MessageRefParams{Chat: family, ID: id}, &res)
+	if res.Reactors == nil || slices.ContainsFunc(res.Reactors, func(r api.Reactor) bool { return r.Mine }) {
+		t.Fatalf("after taking it back: %+v", res.Reactors)
+	}
+
+	for _, p := range []any{api.MessageRefParams{Chat: family}, api.MessageRefParams{ID: id}, nil} {
+		if err := c.call(api.MMessagesReactions, p, nil); err == nil || err.Code != api.CodeInvalidParams {
+			t.Errorf("messages.reactions %v: %v", p, err)
+		}
+	}
+	if err := c.call(api.MMessagesReactions, api.MessageRefParams{Chat: family, ID: "nope"}, nil); err == nil || err.Code != api.CodeNotFound {
+		t.Errorf("messages.reactions of an unknown message: %v", err)
 	}
 }
 

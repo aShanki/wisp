@@ -246,6 +246,11 @@ Rectangle {
             spaceWidth: view.nbsp
             flash: msgId === view.flashId
             onQuoteClicked: id => view.jumpTo(id)
+            onReactionsClicked: pill => {
+                reactors.active = true
+                const r = reactors.item as ReactionDetails
+                r.show(messageRow.msgId, pill, messageRow.fromMe, messageRow.reactions.map(x => x.emoji))
+            }
             windowWidth: view.Window.width
             onImageClicked: (id, source, w, h) => {
                 viewer.active = true
@@ -584,6 +589,23 @@ Rectangle {
             close()
         }
         onClosed: composer.focusInput()
+    }
+
+    // Who reacted, from a click on a message's reaction pill.
+    Loader {
+        id: reactors
+        objectName: "reactorsLoader"
+        active: false
+        sourceComponent: ReactionDetails {
+            onMoreRequested: (id, mine, atX, atY) => {
+                reactPanel.msgId = id
+                reactPanel.mine = mine
+                reactPanel.x = Math.max(0, Math.min(atX, reactPanel.parent.width - reactPanel.width))
+                reactPanel.y = Math.max(0, Math.min(atY, reactPanel.parent.height - reactPanel.height))
+                reactPanel.open()
+            }
+            onClosed: if (!reactPanel.visible) composer.focusInput()
+        }
     }
 
     EditDialog {

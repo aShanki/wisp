@@ -187,6 +187,47 @@ GROUP BY msg_id, emoji ORDER BY msg_id, COUNT(*) DESC, first, emoji`, args...)
 	return rows.Err()
 }
 
+// ListReactors lists who reacted to a message: us, then each emoji as
+// attachReactions orders them, its newest reactor first.
+func (s *Store) ListReactors(ctx context.Context, chat, id string) ([]api.Reactor, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	rows, err := s.r.QueryContext(ctx, `SELECT r.sender, r.from_me, r.emoji, r.ts,
+	COALESCE(c.full_name, ''), COALESCE(c.push_name, ''), COALESCE(c.business_name, '')
+FROM reactions r
+JOIN messages m ON m.chat = r.chat AND m.id = r.msg_id AND m.deleted = 0
+JOIN (SELECT emoji, COUNT(*) AS n, MIN(ts) AS first FROM reactions WHERE chat = ?1 AND msg_id = ?2 GROUP BY emoji) g
+	ON g.emoji = r.emoji
+LEFT JOIN contacts c ON c.jid = r.sender AND r.sender <> ''
+WHERE r.chat = ?1 AND r.msg_id = ?2
+ORDER BY r.from_me DESC, g.n DESC, g.first, r.emoji, r.ts DESC, r.sender`, chat, id)
+	if err != nil {
+		return nil, fmt.Errorf("store: reactors: %w", err)
+	}
+	defer rows.Close()
+	out := []api.Reactor{}
+	for rows.Next() {
+		var r api.Reactor
+		var n names
+		if err := rows.Scan(&r.JID, &r.Mine, &r.Emoji, &r.Ts, &n.full, &n.push, &n.business); err != nil {
+			return nil, fmt.Errorf("store: scan reactor: %w", err)
+		}
+		if r.Mine {
+			r.JID, r.Name = "", "You"
+		} else {
+			r.Name = n.display("", "")
+			if n.full == "" && phoneOf(r.JID) != "" {
+				r.Phone = formatPhone(r.JID)
+			}
+		}
+		out = append(out, r)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("store: reactors: %w", err)
+	}
+	return out, nil
+}
+
 // loadBySeq loads messages by seq (any chats).
 func loadBySeq(ctx context.Context, q querier, seqs []int64, withReactions bool) (map[int64]*api.Message, error) {
 	out := make(map[int64]*api.Message, len(seqs))

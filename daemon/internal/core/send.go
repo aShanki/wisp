@@ -233,6 +233,31 @@ func (c *Core) target(ctx context.Context, p api.MessageRefParams) (*api.Message
 	return m, nil
 }
 
+// MessagesReactions names the people as displayName does. Someone known
+// only by number has it as the name.
+func (c *Core) MessagesReactions(ctx context.Context, p api.MessageRefParams) (*api.ReactionsResult, error) {
+	rs, err := c.store.ListReactors(ctx, p.Chat, p.ID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range rs {
+		r := &rs[i]
+		if r.Mine {
+			r.JID = c.wa.SelfJID()
+			continue
+		}
+		if r.Name == "" && c.wa.IsLoggedIn() {
+			if ct, err := c.wa.ResolveContact(ctx, r.JID); err == nil && ct != nil && ct.Name != "" {
+				r.Name = ct.Name
+			}
+		}
+		if number := jidUser(r.JID); r.Name == "" || r.Name == number || r.Name == r.Phone {
+			r.Name, r.Phone = number, ""
+		}
+	}
+	return &api.ReactionsResult{Reactors: rs}, nil
+}
+
 func (c *Core) MessagesReact(ctx context.Context, p api.ReactParams) error {
 	m, err := c.target(ctx, api.MessageRefParams{Chat: p.Chat, ID: p.ID})
 	if err != nil {
