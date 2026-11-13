@@ -189,6 +189,13 @@ WHERE messages.chat = c.chat AND messages.reply_id = c.reply_id AND messages.rep
 
 DROP TABLE album_fix;
 `,
+	// 8: only receipts observed by this installation; no inferred membership.
+	`CREATE TABLE message_receipts (
+		msg INTEGER NOT NULL REFERENCES messages(seq) ON DELETE CASCADE,
+		sender TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0,
+		read INTEGER NOT NULL DEFAULT 0, delivered_seen INTEGER NOT NULL DEFAULT 0,
+		read_seen INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(msg, sender)
+	) WITHOUT ROWID;`,
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

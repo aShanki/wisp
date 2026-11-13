@@ -116,15 +116,19 @@ type EvHistory struct {
 	Messages  []*Message
 	Contacts  []Contact
 	Reactions []EvReaction
+	Receipts  []EvReceipt
 	Percent   int
 	Final     bool
 }
 
 // EvReceipt: delivery/read receipts for our outgoing messages.
 type EvReceipt struct {
-	Chat   string
-	IDs    []string
-	Status string
+	Chat          string
+	IDs           []string
+	Status        string
+	Sender        string // group recipient, when known
+	ReceiptStatus string // individual delivery/read/played status
+	Ts            int64
 }
 
 // EvReaction: someone (maybe us, from another device) reacted.

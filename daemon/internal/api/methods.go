@@ -23,6 +23,7 @@ const (
 	MMessagesSendSticker = "messages.sendSticker"
 	MMessagesReact       = "messages.react"
 	MMessagesReactions   = "messages.reactions"
+	MMessagesInfo        = "messages.info"
 	MMessagesEdit        = "messages.edit"
 	MMessagesRevoke      = "messages.revoke"
 	MMessagesDeleteForMe = "messages.deleteForMe"
@@ -136,6 +137,18 @@ type ReactParams struct {
 // emojis in the order of the message's Reactions, newest reactor first.
 type ReactionsResult struct {
 	Reactors []Reactor `json:"reactors"`
+}
+
+type MessageReceipt struct {
+	JID         string `json:"jid"`
+	Name        string `json:"name"`
+	Delivered   bool   `json:"delivered"`
+	DeliveredAt int64  `json:"deliveredAt"`
+	Read        bool   `json:"read"`
+	ReadAt      int64  `json:"readAt"`
+}
+type MessageInfoResult struct {
+	Receipts []MessageReceipt `json:"receipts"`
 }
 
 // EditParams replaces the text of one of our text messages.

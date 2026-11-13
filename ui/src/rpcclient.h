@@ -53,6 +53,11 @@ public:
     // QML: Daemon.call("chats.get", {chat: jid}, function(result, error) {...}); error is null on success.
     Q_INVOKABLE void call(const QString &method, const QJSValue &params, const QJSValue &callback = QJSValue());
 
+    // How a local agent host starts Wisp's MCP server (`wispctl mcp`) for this
+    // installation: as a shell command, and as an "mcpServers" JSON entry.
+    Q_INVOKABLE QString agentCommand() const;
+    Q_INVOKABLE QString agentConfig() const;
+
     Q_INVOKABLE void startQR();
     Q_INVOKABLE void pairPhone(const QString &phone);
     Q_INVOKABLE void logout();
@@ -95,6 +100,7 @@ private:
     void giveUp(const QString &message);
     bool spawnDaemon();
     QString daemonPath() const;
+    QStringList agentArgv() const;
     void onHello(const QJsonObject &r);
     void send(const QString &method, const QJsonObject &params, RpcCallback cb);
     void readLines();

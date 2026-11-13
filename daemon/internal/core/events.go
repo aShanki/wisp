@@ -94,6 +94,14 @@ func (c *Core) handle(ev api.WAEvent) {
 			return
 		}
 		c.emitUpdates(ctx, e.Chat, msgs...)
+		if e.Sender != "" && e.ReceiptStatus != "" {
+			changed, err := c.store.ApplyReceipt(ctx, e)
+			if err != nil {
+				c.logErr("individual receipt", err, "chat", e.Chat)
+			} else {
+				c.emitUpdates(ctx, e.Chat, changed...)
+			}
+		}
 	case api.EvReaction:
 		m, err := c.store.ApplyReaction(ctx, e)
 		if err != nil {
@@ -233,6 +241,14 @@ func (c *Core) onHistory(ctx context.Context, h *api.EvHistory) {
 	if err := c.store.PutHistory(ctx, h); err != nil {
 		c.logErr("put history", err)
 		return
+	}
+	for _, receipt := range h.Receipts {
+		msgs, err := c.store.ApplyReceipt(ctx, receipt)
+		if err != nil {
+			c.logErr("history receipt", err, "chat", receipt.Chat)
+			continue
+		}
+		c.emitUpdates(ctx, receipt.Chat, msgs...)
 	}
 	touched := map[string]struct{}{}
 	for _, p := range h.Chats {

@@ -36,6 +36,7 @@ type Backend interface {
 	MessagesReact(ctx context.Context, p ReactParams) error
 	// MessagesReactions lists who reacted to a message, and with what.
 	MessagesReactions(ctx context.Context, p MessageRefParams) (*ReactionsResult, error)
+	MessagesInfo(ctx context.Context, p MessageRefParams) (*MessageInfoResult, error)
 	// MessagesEdit changes the text of one of our text messages for everyone.
 	MessagesEdit(ctx context.Context, p EditParams) error
 	// MessagesRevoke deletes one of our messages for everyone.
@@ -118,6 +119,8 @@ type Store interface {
 	// ReactionsResult. Ours has JID ""; a person we have no name for has
 	// Name "". None for unknown or deleted messages.
 	ListReactors(ctx context.Context, chat, id string) ([]Reactor, error)
+	ApplyReceipt(ctx context.Context, e EvReceipt) ([]*Message, error)
+	ListReceipts(ctx context.Context, chat, id string) ([]MessageReceipt, error)
 	// DeleteMessage removes a message, its media row and reactions, and
 	// repoints the chat's last message.
 	DeleteMessage(ctx context.Context, chat, id string) error
@@ -284,6 +287,8 @@ const (
 	CodeNotConnected   = 1003
 	CodeMediaExpired   = 1004
 	CodeUnsupported    = 1005
+	CodeAgentAccess    = 1006
+	CodeAgentRate      = 1007
 )
 
 // ErrorCode maps an error to a JSON-RPC error code.
@@ -299,6 +304,10 @@ func ErrorCode(err error) int {
 		return CodeMediaExpired
 	case errors.Is(err, ErrUnsupported):
 		return CodeUnsupported
+	case errors.Is(err, ErrAgentAccess):
+		return CodeAgentAccess
+	case errors.Is(err, ErrAgentRate):
+		return CodeAgentRate
 	case errors.Is(err, ErrInvalidParams), errors.Is(err, ErrPinLimit):
 		return CodeInvalidParams
 	}

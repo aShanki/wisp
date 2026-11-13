@@ -138,3 +138,17 @@ func TestHistoryLIDPairs(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestHistoryGroupReceipts(t *testing.T) {
+	cli := whatsmeow.NewClient(&store.Device{ID: &selfPN, LID: selfLID}, nil)
+	msg := webMsg(group.String(), "G1", true, 100, &waE2E.Message{Conversation: new("hi")})
+	msg.Message.UserReceipt = []*waWeb.UserReceipt{{UserJID: new(aliceLID.String()), ReceiptTimestamp: new(int64(110)), ReadTimestamp: new(int64(120))}}
+	data := &waHistorySync.HistorySync{Conversations: []*waHistorySync.Conversation{{ID: new(group.String()), Messages: []*waHistorySync.HistorySyncMsg{msg}}}}
+	h := convertHistory(testConverter(), cli.ParseWebMessage, data, time.Now())
+	if h == nil || len(h.Receipts) != 2 {
+		t.Fatalf("receipts: %+v", h)
+	}
+	if h.Receipts[0].Sender != alicePN.String() || h.Receipts[0].ReceiptStatus != api.StatusDelivered || h.Receipts[0].Ts != 110 || h.Receipts[1].ReceiptStatus != api.StatusRead || h.Receipts[1].Ts != 120 {
+		t.Fatalf("receipts: %+v", h.Receipts)
+	}
+}

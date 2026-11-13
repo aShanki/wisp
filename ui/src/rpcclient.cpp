@@ -4,9 +4,11 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QJSEngine>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QLoggingCategory>
 #include <QProcess>
+#include <QRegularExpression>
 #include <QStandardPaths>
 
 Q_LOGGING_CATEGORY(lcRpc, "wisp.rpc", QtInfoMsg)
@@ -154,6 +156,30 @@ QString RpcClient::daemonPath() const
             return fi.filePath();
     }
     return QStandardPaths::findExecutable(u"wispd"_s);
+}
+
+QStringList RpcClient::agentArgv() const
+{
+    const QString daemon = daemonPath();
+    const QString dir = daemon.isEmpty() ? QCoreApplication::applicationDirPath() : QFileInfo(daemon).absolutePath();
+    return {dir + "/wispctl"_L1, u"--socket"_s, m_socketPath, u"mcp"_s};
+}
+
+QString RpcClient::agentCommand() const
+{
+    static const QRegularExpression plain(u"^[A-Za-z0-9_@%+=:,./-]+$"_s);
+    QStringList words;
+    for (QString arg : agentArgv())
+        words << (plain.match(arg).hasMatch() ? arg : u'\'' + arg.replace(u"'"_s, u"'\\''"_s) + u'\'');
+    return words.join(u' ');
+}
+
+QString RpcClient::agentConfig() const
+{
+    QStringList argv = agentArgv();
+    const QString program = argv.takeFirst();
+    const QJsonObject server{{u"command"_s, program}, {u"args"_s, QJsonArray::fromStringList(argv)}};
+    return QString::fromUtf8(QJsonDocument(QJsonObject{{u"mcpServers"_s, QJsonObject{{u"wisp"_s, server}}}}).toJson(QJsonDocument::Indented)).trimmed();
 }
 
 bool RpcClient::spawnDaemon()

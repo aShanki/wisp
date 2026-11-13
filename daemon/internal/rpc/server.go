@@ -1,6 +1,7 @@
 // Package rpc serves JSON-RPC 2.0 over a unix socket:
 // one request per line, each handled in its own goroutine, and events sent
-// to every client that has said daemon.hello.
+// to every client that has said daemon.hello. A client that says agent.hello
+// instead is an agent: it gets no events and only what api.AgentGate allows.
 package rpc
 
 import (
@@ -31,8 +32,9 @@ const (
 
 // Server is the unix-socket JSON-RPC server. It implements api.Emitter.
 type Server struct {
-	b   api.Backend
-	log *slog.Logger
+	b    api.Backend
+	log  *slog.Logger
+	gate *api.AgentGate
 
 	mu      sync.RWMutex
 	clients map[int64]*client
@@ -48,7 +50,7 @@ func NewServer(b api.Backend, log *slog.Logger) *Server {
 	if log == nil {
 		log = slog.Default()
 	}
-	s := &Server{b: b, log: log, clients: map[int64]*client{}}
+	s := &Server{b: b, log: log, gate: api.NewAgentGate(), clients: map[int64]*client{}}
 	b.SetEmitter(s)
 	return s
 }
@@ -138,7 +140,7 @@ func (s *Server) Emit(event string, params any) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	for _, c := range s.clients {
-		if !c.hello.Load() {
+		if !c.hello.Load() || c.agent.Load() {
 			continue
 		}
 		select {
@@ -159,6 +161,7 @@ type client struct {
 	wdone  chan struct{} // writer exited
 	once   sync.Once
 	hello  atomic.Bool
+	agent  atomic.Bool // said agent.hello; never cleared
 	ctx    context.Context
 	cancel context.CancelFunc
 	reqs   sync.WaitGroup
@@ -341,6 +344,9 @@ func (s *Server) handleLine(c *client, line []byte) {
 		c.send(encodeError(id, api.CodeInvalidRequest, "invalid request: jsonrpc must be \"2.0\""))
 		return
 	}
+	if req.Method == api.MAgentHello {
+		c.agent.Store(true) // before any later request is dispatched
+	}
 	c.reqs.Add(1)
 	go func() {
 		defer c.reqs.Done()
@@ -378,6 +384,9 @@ func (s *Server) call(c *client, req *request) {
 		}
 	}
 	c.send(line)
+	if err == nil && c.agent.Load() && api.AgentSends(req.Method) {
+		s.log.Info("rpc: agent sent", "client", c.id, "method", req.Method, "chat", chatOf(req.Params))
+	}
 	if err == nil && req.Method == api.MDaemonHello {
 		c.hello.Store(true) // events follow the hello response
 	}
@@ -390,7 +399,16 @@ func (s *Server) dispatch(c *client, req *request) (result any, err error) {
 			result, err = nil, fmt.Errorf("internal error: %v", r)
 		}
 	}()
+	if c.agent.Load() {
+		return s.gate.Dispatch(c.ctx, s.b, req.Method, req.Params)
+	}
 	return api.Dispatch(c.ctx, s.b, req.Method, req.Params)
+}
+
+func chatOf(params json.RawMessage) string {
+	var p api.ChatParams
+	_ = json.Unmarshal(params, &p)
+	return p.Chat
 }
 
 func encodeError(id json.RawMessage, code int, msg string) []byte {

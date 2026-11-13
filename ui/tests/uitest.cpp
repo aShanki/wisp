@@ -142,6 +142,7 @@ private slots:
     void replyJump();
     void narrowWhileLoading();
     void reactionDetails();
+    void messageInfo();
     void messageActions();
     void unlinkClosesChat();
 
@@ -349,6 +350,35 @@ void UiTest::shell()
     QVERIFY(!m_chatView->isVisible());
     click(named(root, u"settingsNotifications"_s));
     QVERIFY(!shown(u"settingsNotifications"_s));
+
+    // Agent access: pick a level, then back to Off.
+    click(named(root, u"navChats"_s));
+    click(named(root, u"navSettings"_s));
+    click(named(root, u"settingsAgent"_s));
+    QTRY_VERIFY(shown(u"agentRead"_s));
+    QTRY_VERIFY(named(root, u"agentOff"_s)->property("checked").toBool());
+    QVERIFY(named(root, u"agentCommand"_s)->property("text").toString().contains(u"/wispctl"_s));
+    QVERIFY(named(root, u"agentCommand"_s)->property("text").toString().endsWith(u" mcp"_s));
+    // wispd answers requests concurrently: poll until the change has landed,
+    // one settings.get at a time, with state that outlives this test.
+    struct Poll { bool pending = false; QString access; };
+    const auto poll = std::make_shared<Poll>();
+    const auto accessIs = [poll](const QString &want) {
+        if (!poll->pending) {
+            poll->pending = true;
+            RpcClient::instance()->call(u"settings.get"_s, {}, [poll](const QJsonValue &r, const QJsonObject &) {
+                poll->access = r.toObject().value("settings"_L1).toObject().value("agent.access"_L1).toString();
+                poll->pending = false;
+            });
+        }
+        return poll->access == want;
+    };
+    click(named(root, u"agentRead"_s));
+    QVERIFY(named(root, u"agentRead"_s)->property("checked").toBool());
+    QTRY_VERIFY(accessIs(u"read"_s));
+    click(named(root, u"agentOff"_s));
+    QTRY_VERIFY(accessIs(u"off"_s));
+    QTRY_VERIFY(!poll->pending);
     click(named(root, u"navChats"_s));
     QVERIFY(m_chatView->isVisible());
     QVERIFY(m_chatView->hasActiveFocus());
@@ -1130,6 +1160,61 @@ void UiTest::reactionDetails()
 
     m_conv->open(kBig);
     QTRY_VERIFY(m_conv->jid() == kBig && !m_conv->loading() && m_conv->messages()->rowCount() > 0);
+}
+
+// The group menu opens info for an outgoing message and Escape closes it.
+void UiTest::messageInfo()
+{
+    const QString group = u"120363000000000002@g.us"_s;
+    m_conv->open(group);
+    const MessageModel *model = m_conv->messages();
+    QTRY_VERIFY(m_conv->jid() == group && !m_conv->loading() && model->rowCount() > 0);
+    QString target;
+    bool done = false;
+    RpcClient::instance()->call(u"messages.list"_s, {{u"chat"_s, group}, {u"limit"_s, 200}},
+        [&](const QJsonValue &r, const QJsonObject &) {
+        for (const QJsonValue &m : r["messages"_L1].toArray()) {
+            if (m["fromMe"_L1].toBool() && m["type"_L1] == "text"_L1 && !m["deleted"_L1].toBool()) { target = m["id"_L1].toString(); break; }
+        }
+        done = true;
+    });
+    QTRY_VERIFY(done && !target.isEmpty());
+    QQuickItem *view = findView(m_window->contentItem(), model);
+    QVERIFY(view);
+    emit m_conv->jumpRequested(target);
+    QQuickItem *row = nullptr;
+    QTRY_VERIFY_WITH_TIMEOUT([&] { row = itemAt(view, model->indexOf(target)); return row && !view->property("moving").toBool() && sceneRect(view).contains(sceneRect(bubbleOf(row))); }(), 10000);
+    QObject *menu = m_window->findChild<QObject *>(u"messageMenu"_s);
+    QObject *panel = m_window->findChild<QObject *>(u"messageInfo"_s);
+    QVERIFY(menu && panel);
+    frame();
+    const QPointF at = sceneRect(bubbleOf(row)).center();
+    QTest::mouseClick(m_window, Qt::RightButton, {}, at.toPoint());
+    QCOMPARE(menuPlaced(menu, atPoint(at)), QString());
+    QQuickItem *entry = nullptr;
+    qreal offset = 0;
+    for (int i = 0; i < menu->property("count").toInt(); ++i) {
+        QQuickItem *candidate = nullptr;
+        QMetaObject::invokeMethod(menu, "itemAt", Q_RETURN_ARG(QQuickItem *, candidate), Q_ARG(int, i));
+        if (candidate && candidate->isVisible() && candidate->property("text").toString() == u"Message info"_s) { entry = candidate; break; }
+        if (candidate) offset += candidate->height();
+    }
+    QVERIFY(entry);
+    frame();
+    // The menu's content model lays the entries out in a ListView. itemAt()
+    // returns the source item at y=0, not its displayed row's scene position.
+    auto *content = menu->property("contentItem").value<QQuickItem *>();
+    QVERIFY(content);
+    const QPoint atEntry = (sceneRect(content).topLeft() + QPointF(content->width() / 2, offset + entry->height() / 2)).toPoint();
+    QTest::mouseMove(m_window, atEntry);
+    QTest::mouseClick(m_window, Qt::LeftButton, {}, atEntry);
+    QTRY_VERIFY(panel->property("opened").toBool());
+    QTRY_VERIFY(!panel->property("loading").toBool());
+    QVERIFY(!panel->property("failed").toBool());
+    QVERIFY(!panel->property("receipts").toList().isEmpty());
+    key(Qt::Key_Escape);
+    QTRY_VERIFY(!panel->property("opened").toBool());
+    QCOMPARE(m_conv->jid(), group);
 }
 
 // React, Delete for everyone and Delete for me from a message's menu. Last

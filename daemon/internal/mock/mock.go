@@ -82,6 +82,7 @@ func New(cfg Config) *Backend {
 			api.SettingNotifyPreview: true,
 			api.SettingSendReceipts:  true,
 			api.SettingMediaCacheMB:  1024,
+			api.SettingAgentAccess:   api.AgentOff,
 		},
 		done: make(chan struct{}),
 	}
@@ -929,6 +930,11 @@ func (b *Backend) SettingsSet(ctx context.Context, p api.SettingsSetParams) erro
 			return api.InvalidParams("%s must be a positive number", p.Key)
 		}
 		b.settings[p.Key] = int(v)
+	case api.SettingAgentAccess:
+		if !api.ValidAgentAccess(p.Value) {
+			return api.InvalidParams("%s must be off, read or send", p.Key)
+		}
+		b.settings[p.Key] = p.Value
 	default:
 		return api.InvalidParams("unknown setting %q", p.Key)
 	}

@@ -52,6 +52,35 @@ older matches. Search ignores case and accents and matches the last word as a
 prefix. Ctrl+F (or the search icon in a chat header) searches that conversation.
 Back to latest messages returns from an old result to the live conversation.
 
+## Agent access (MCP)
+
+AI agents on the same computer, such as Claude Code, can read your chats and
+send messages for you through `wispctl mcp`, a local Model Context Protocol
+server on stdio. It is off until you choose a level in Settings → Agent access:
+
+- **Read chats**: list chats, read and search messages, list group members and
+  download attachments. Reading never marks anything as read.
+- **Read and send**: also send messages and files, react, and mark chats as
+  read, as you, to chats you already have, at most 20 a minute.
+
+The same page shows the command for this installation and copies it, or a
+JSON `mcpServers` entry. With Claude Code on Linux, for example:
+
+    claude mcp add wisp -- ~/.local/bin/wispctl --socket "$XDG_RUNTIME_DIR/wisp.sock" mcp
+
+On macOS the program is `Wisp.app/Contents/MacOS/wispctl`. The tools are
+`get_status`, `list_chats`, `read_messages`, `search_messages`,
+`list_group_members`, `get_media`, `send_message`, `send_file`,
+`react_to_message` and `mark_chat_read`.
+
+`wispd` enforces the setting on every call (`daemon/internal/api/agent.go`):
+an agent connection gets no events and only those methods, and cannot change
+settings, link devices, log out, or edit or delete messages. The socket is
+private to your user. While Wisp is not running, agents get nothing. The
+setting governs the MCP tools; it is not a sandbox against programs that
+already run as you, so an agent with unrestricted shell access could still
+use `wispctl call` directly. Give such agents shell access with that in mind.
+
 ## License
 
 MIT. Vendored and third-party material keeps its own licence:

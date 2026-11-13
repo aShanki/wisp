@@ -386,7 +386,20 @@ func receiptEvent(cv *converter, r *events.Receipt) api.WAEvent {
 	}
 	ids := make([]string, len(r.MessageIDs))
 	copy(ids, r.MessageIDs)
-	return api.EvReceipt{Chat: chat.String(), IDs: ids, Status: status}
+	ev := api.EvReceipt{Chat: chat.String(), IDs: ids, Status: status}
+	if r.IsGroup && !r.Sender.IsEmpty() {
+		ev.Sender = cv.senderOf(&types.MessageInfo{MessageSource: r.MessageSource}).String()
+		switch r.Type {
+		case types.ReceiptTypeDelivered:
+			ev.ReceiptStatus = api.StatusDelivered
+		case types.ReceiptTypeRead, types.ReceiptTypePlayed:
+			ev.ReceiptStatus = api.StatusRead
+		}
+		if r.Type != types.ReceiptTypePlayed && !r.Timestamp.IsZero() {
+			ev.Ts = r.Timestamp.Unix()
+		}
+	}
+	return ev
 }
 
 // receiptStatus maps someone's receipt to our message's status ("" = none).

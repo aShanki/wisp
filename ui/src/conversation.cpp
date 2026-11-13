@@ -185,6 +185,9 @@ void ConversationController::switchTo(const QString &jid)
     m_attachments->clear();
     ++m_gen;
     m_jid = jid;
+    if (const QString id = std::exchange(m_infoOf, {}); !id.isEmpty())
+        emit messageInfoLoaded(id, {}, true);
+    ++m_infoRequest;
     m_presence.clear();
     m_reply.clear();
     if (const QString id = std::exchange(m_reactorsOf, {}); !id.isEmpty())
@@ -352,6 +355,8 @@ void ConversationController::onEvent(const QString &name, const QJsonObject &par
         const bool unloaded = m_hasMore && oldest && msg["timestamp"_L1].toInteger() < oldest->timestamp;
         if (name == "message.update"_L1) {
             m_model->update(msg);
+            if (msg["id"_L1].toString() == m_infoOf)
+                fetchMessageInfo();
             if (msg["id"_L1].toString() == m_reactorsOf)
                 fetchReactors();
         } else if (m_historical) {
@@ -368,6 +373,10 @@ void ConversationController::onEvent(const QString &name, const QJsonObject &par
         if (m_reply.value(u"id"_s).toString() == id)
             cancelReply();
         m_model->remove(id);
+        if (id == m_infoOf) {
+            m_infoOf.clear();
+            emit messageInfoLoaded(id, {}, true);
+        }
         if (id == m_reactorsOf) {
             m_reactorsOf.clear();
             emit reactorsLoaded(id, {});
@@ -588,6 +597,28 @@ void ConversationController::act(const QString &method, QJsonObject params, cons
 void ConversationController::react(const QString &id, const QString &emoji)
 {
     act(u"messages.react"_s, {{u"id"_s, id}, {u"emoji"_s, emoji}}, u"Reaction not sent"_s);
+}
+
+void ConversationController::watchMessageInfo(const QString &id)
+{
+    m_infoOf = id;
+    ++m_infoRequest;
+    fetchMessageInfo();
+}
+
+void ConversationController::fetchMessageInfo()
+{
+    if (m_infoOf.isEmpty() || m_jid.isEmpty()) return;
+    const QString chat = m_jid, id = m_infoOf;
+    const quint64 request = ++m_infoRequest;
+    RpcClient::instance()->call(u"messages.info"_s, {{u"chat"_s, chat}, {u"id"_s, id}},
+        [this, chat, id, request](const QJsonValue &result, const QJsonObject &e) {
+        if (chat != m_jid || id != m_infoOf || request != m_infoRequest) return;
+        QVariantList receipts;
+        for (const QJsonValue &v : result["receipts"_L1].toArray())
+            receipts.append(v.toObject().toVariantMap());
+        emit messageInfoLoaded(id, receipts, !e.isEmpty());
+    });
 }
 
 void ConversationController::watchReactors(const QString &id)
