@@ -1152,3 +1152,45 @@ func TestEdit(t *testing.T) {
 		t.Errorf("editing a deleted message: err = %v", err)
 	}
 }
+
+func TestGroupMessageInfoReceipts(t *testing.T) {
+	ctx := context.Background()
+	h := newHarness(t)
+	m, err := h.c.MessagesSend(ctx, api.SendParams{Chat: group, Text: "hello"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h.ev.waitFor(t, "sent", func(e event) bool {
+		ce, ok := e.params.(api.ChatEvent)
+		return ok && ce.Chat.LastMessage != nil && ce.Chat.LastMessage.Status == api.StatusSent
+	})
+	h.ev.reset()
+	receipt := api.EvReceipt{Chat: group, IDs: []string{m.ID, "unknown"}, Status: api.StatusDelivered, Sender: alice, ReceiptStatus: api.StatusRead, Ts: 200}
+	h.c.handle(receipt)
+	info, err := h.c.MessagesInfo(ctx, api.MessageRefParams{Chat: group, ID: m.ID})
+	if err != nil || len(info.Receipts) != 1 || !info.Receipts[0].Read || info.Receipts[0].ReadAt != 200 || info.Receipts[0].Delivered {
+		t.Fatalf("read info: %+v, %v", info, err)
+	}
+	if len(h.ev.names()) == 0 {
+		t.Fatal("receipt did not notify the open view")
+	}
+	h.ev.reset()
+	h.c.handle(receipt)
+	if len(h.ev.names()) != 0 {
+		t.Fatalf("duplicate notified: %v", h.ev.names())
+	}
+	receipt.ReceiptStatus, receipt.Ts = api.StatusDelivered, 100
+	h.c.handle(receipt)
+	receipt.ReceiptStatus, receipt.Ts = api.StatusRead, 300
+	h.c.handle(receipt)
+	info, err = h.c.MessagesInfo(ctx, api.MessageRefParams{Chat: group, ID: m.ID})
+	if err != nil || len(info.Receipts) != 1 || !info.Receipts[0].Delivered || info.Receipts[0].DeliveredAt != 100 || info.Receipts[0].ReadAt != 200 {
+		t.Fatalf("out of order: %+v, %v", info, err)
+	}
+	if err := h.c.MessagesDeleteForMe(ctx, api.MessageRefParams{Chat: group, ID: m.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := h.c.MessagesInfo(ctx, api.MessageRefParams{Chat: group, ID: m.ID}); err == nil {
+		t.Fatal("deleted message still has info")
+	}
+}

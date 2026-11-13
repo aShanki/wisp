@@ -187,6 +187,32 @@ else
   fail "unknown method: $e"
 fi
 
+# --- agent access (wispctl mcp) ------------------------------------------------
+mcp() {
+  { echo '{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"1"}}}'
+    printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"%s","arguments":%s}}\n' "$1" "$2"
+  } | timeout 20 "$BIN/wispctl" --socket "$SOCK" mcp | jq -c 'select(.id == 1) | .result'
+}
+if r=$(mcp list_chats '{"limit":1}') && jq -e '.isError == true and (.content[0].text | test("turned off"))' <<<"$r" >/dev/null; then
+  pass "mcp: agent access is off by default"
+else
+  fail "mcp while off: ${r:0:200}"
+fi
+rpc settings.set '{"key":"agent.access","value":"read"}' >/dev/null
+if r=$(mcp read_messages "$(jq -nc --arg c "$BIG" '{chat:$c,limit:3}')") &&
+  jq -e '(.isError | not) and (.content[0].text | fromjson | .messages | length) == 3' <<<"$r" >/dev/null; then
+  pass "mcp: read_messages with read access"
+else
+  fail "mcp read_messages: ${r:0:200}"
+fi
+if r=$(mcp send_message "$(jq -nc --arg c "$BIG" '{chat:$c,text:"smoke agent"}')") &&
+  jq -e '.isError == true and (.content[0].text | test("read-only"))' <<<"$r" >/dev/null; then
+  pass "mcp: send refused while read-only"
+else
+  fail "mcp send while read-only: ${r:0:200}"
+fi
+rpc settings.set '{"key":"agent.access","value":"off"}' >/dev/null
+
 # --- UI (offscreen) ---------------------------------------------------------
 SHOT=$TMP/shot.png
 QT_QPA_PLATFORM=offscreen QT_QUICK_BACKEND=software QT_ACCESSIBILITY=0 WISP_PERF=1 \

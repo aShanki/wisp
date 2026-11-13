@@ -205,6 +205,23 @@ func convertHistory(cv *converter, parse webParser, data *waHistorySync.HistoryS
 					p.msg.Status = webStatus(wm.GetStatus())
 				}
 				h.Messages = append(h.Messages, p.msg)
+				if p.msg.FromMe && kind == api.ChatGroup {
+					for _, receipt := range wm.GetUserReceipt() {
+						jid, err := types.ParseJID(receipt.GetUserJID())
+						if err != nil || jid.IsEmpty() {
+							continue
+						}
+						sender := cv.canon(jid).String()
+						if ts := receipt.GetReceiptTimestamp(); ts > 0 {
+							h.Receipts = append(h.Receipts, api.EvReceipt{Chat: chatStr, IDs: []string{p.msg.ID}, Sender: sender, ReceiptStatus: api.StatusDelivered, Ts: ts})
+						}
+						if ts := receipt.GetReadTimestamp(); ts > 0 {
+							h.Receipts = append(h.Receipts, api.EvReceipt{Chat: chatStr, IDs: []string{p.msg.ID}, Sender: sender, ReceiptStatus: api.StatusRead, Ts: ts})
+						} else if receipt.GetPlayedTimestamp() > 0 {
+							h.Receipts = append(h.Receipts, api.EvReceipt{Chat: chatStr, IDs: []string{p.msg.ID}, Sender: sender, ReceiptStatus: api.StatusRead})
+						}
+					}
+				}
 			} else if p.reaction != nil {
 				p.reaction.Chat = chatStr
 				h.Reactions = append(h.Reactions, *p.reaction)

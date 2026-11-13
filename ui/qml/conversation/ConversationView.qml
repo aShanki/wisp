@@ -457,6 +457,7 @@ Rectangle {
     MessageMenu {
         id: menu
         objectName: "messageMenu"
+        onInfoRequested: (id, preview) => messageInfo.show(id, preview)
         onReplyRequested: id => {
             Conversation.startReply(id)
             composer.focusInput()
@@ -477,6 +478,8 @@ Rectangle {
             deleteConfirm.open()
         }
     }
+
+    MessageInfo { id: messageInfo }
 
     // WhatsApp's quick reactions; picking ours again takes it back. + opens
     // every emoji.

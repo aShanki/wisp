@@ -286,7 +286,7 @@ type Notification struct {
 	Avatar   string // local image path, may be ""
 }
 
-// Settings keys (settings.get / settings.set).
+// Settings keys (settings.get / settings.set). SettingAgentAccess is in agent.go.
 const (
 	SettingNotifications = "notifications.enabled" // bool, default true
 	SettingNotifyPreview = "notifications.preview" // bool, default true (show message text)

@@ -8,6 +8,7 @@ import Wisp
 PopupMenu {
     id: menu
     property MessageDelegate target: null
+    signal infoRequested(string id, string preview)
     signal replyRequested(string id)
     signal copyRequested(string richText)
     signal reactRequested(string id, string mine)
@@ -163,6 +164,12 @@ PopupMenu {
         iconName: text === "Open" ? "open_in_new" : "download"
         enabled: !!menu.target && menu.canOpen(menu.target)
         onTriggered: Conversation.openMedia(menu.target.msgId)
+    }
+    PopupMenu.Entry {
+        text: "Message info"
+        iconName: "description"
+        enabled: !!menu.target && Conversation.isGroup && menu.target.fromMe && !menu.target.isDeleted && menu.sent(menu.target)
+        onTriggered: menu.infoRequested(menu.target.msgId, menu.target.richText)
     }
     PopupMenu.Entry {
         text: "Edit"

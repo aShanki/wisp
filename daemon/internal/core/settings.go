@@ -17,6 +17,7 @@ var settingDefaults = map[string]any{
 	api.SettingNotifyPreview: true,
 	api.SettingSendReceipts:  true,
 	api.SettingMediaCacheMB:  float64(1024),
+	api.SettingAgentAccess:   api.AgentOff,
 }
 
 // loadSettings returns the cached settings (defaults merged with the
@@ -89,6 +90,10 @@ func (c *Core) SettingsSet(ctx context.Context, p api.SettingsSetParams) error {
 			return api.InvalidParams("%s must be a non-negative number (default %v)", p.Key, def)
 		}
 		val = math.Trunc(f)
+	case string:
+		if p.Key == api.SettingAgentAccess && !api.ValidAgentAccess(val) {
+			return api.InvalidParams("%s must be %q, %q or %q", p.Key, api.AgentOff, api.AgentRead, api.AgentSend)
+		}
 	}
 	if err := c.saveSetting(ctx, p.Key, val); err != nil {
 		return err

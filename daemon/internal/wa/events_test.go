@@ -48,6 +48,13 @@ func TestReceiptEvent(t *testing.T) {
 	if ev := receiptEvent(cv, &events.Receipt{MessageSource: mine, MessageIDs: []string{"A"}, Type: types.ReceiptTypeDelivered}); ev != nil {
 		t.Fatalf("own delivered: %#v", ev)
 	}
+	// A group receipt identifies the reader and its server timestamp while
+	// the aggregate status remains delivered, not read by everyone.
+	group := types.MessageSource{Chat: types.NewJID("123", types.GroupServer), Sender: aliceLID, SenderAlt: alicePN, IsGroup: true}
+	got := receiptEvent(cv, &events.Receipt{MessageSource: group, MessageIDs: []string{"G"}, Type: types.ReceiptTypeRead, Timestamp: time.Unix(123, 0)})
+	if r, ok := got.(api.EvReceipt); !ok || r.Sender != alicePN.String() || r.ReceiptStatus != api.StatusRead || r.Status != api.StatusDelivered || r.Ts != 123 {
+		t.Fatalf("group receipt: %#v", got)
+	}
 	// Alice reading our message.
 	theirs := types.MessageSource{Chat: alicePN, Sender: alicePN}
 	ev = receiptEvent(cv, &events.Receipt{MessageSource: theirs, MessageIDs: []string{"B"}, Type: types.ReceiptTypeRead})
