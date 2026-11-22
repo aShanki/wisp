@@ -79,7 +79,7 @@ func (c *Core) sendPrepared(ctx context.Context, chat string, om *api.OutgoingMe
 		return nil, err
 	}
 	m.Media = &api.MediaInfo{Mime: om.Mime, Size: int64(len(om.Data)), Width: om.Width, Height: om.Height,
-		FileName: om.FileName, HasThumb: len(om.Thumb) > 0, Path: path}
+		Duration: om.Duration, FileName: om.FileName, HasThumb: len(om.Thumb) > 0, Path: path}
 	reply := c.attachReply(ctx, m, replyTo)
 	return c.sendAsync(ctx, m, func(ctx context.Context) (*api.MediaRef, error) {
 		return c.wa.SendMedia(ctx, m.Chat, m.ID, om, m.Text, reply, jids)

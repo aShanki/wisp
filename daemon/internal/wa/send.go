@@ -106,7 +106,7 @@ func mentionLIDs(text string, jids []types.JID, lidFor func(types.JID) types.JID
 	return text
 }
 
-// SendMedia uploads m and sends it as an image or, for anything else, a document.
+// SendMedia uploads the prepared file and sends it as the corresponding WhatsApp media type.
 func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.OutgoingMedia, caption string, reply *api.ReplyRef, mentions []string) (*api.MediaRef, error) {
 	cli, to, err := c.sendTarget(ctx, chat)
 	if err != nil {
@@ -116,18 +116,27 @@ func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.Outgoing
 	if err != nil {
 		return nil, err
 	}
-	typ, mt := api.MsgDocument, whatsmeow.MediaDocument
-	if m.Type == api.MsgImage || m.Type == api.MsgSticker {
-		typ, mt = m.Type, whatsmeow.MediaImage
-	}
-	up, err := cli.Upload(ctx, m.Data, mt)
+	up, err := cli.Upload(ctx, m.Data, mediaType(m.Type))
 	if err != nil {
 		return nil, fmt.Errorf("wa: upload: %w", err)
 	}
 	ci := withMentions(replyContext(reply, to), jids)
-	var msg *waE2E.Message
-	if typ == api.MsgSticker {
-		msg = &waE2E.Message{StickerMessage: &waE2E.StickerMessage{
+	msg := uploadedMediaMessage(m, up, caption, ci)
+	if _, err := cli.SendMessage(ctx, to, msg, whatsmeow.SendRequestExtra{ID: id}); err != nil {
+		return nil, fmt.Errorf("wa: send media: %w", err)
+	}
+	return &api.MediaRef{
+		Chat: chat, ID: id, Type: m.Type, Mime: m.Mime,
+		DirectPath: up.DirectPath, URL: up.URL, MediaKey: up.MediaKey,
+		FileSHA256: up.FileSHA256, FileEncSHA256: up.FileEncSHA256,
+		FileLength: up.FileLength, FileName: m.FileName,
+	}, nil
+}
+
+func uploadedMediaMessage(m *api.OutgoingMedia, up whatsmeow.UploadResponse, caption string, ci *waE2E.ContextInfo) *waE2E.Message {
+	switch m.Type {
+	case api.MsgSticker:
+		return &waE2E.Message{StickerMessage: &waE2E.StickerMessage{
 			Mimetype:      new(m.Mime),
 			URL:           new(up.URL),
 			DirectPath:    new(up.DirectPath),
@@ -140,8 +149,24 @@ func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.Outgoing
 			IsAnimated:    new(m.Animated),
 			ContextInfo:   ci,
 		}}
-	} else if typ == api.MsgImage {
-		msg = &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
+	case api.MsgVideo:
+		return &waE2E.Message{VideoMessage: &waE2E.VideoMessage{
+			Caption:       optional(caption),
+			Mimetype:      new(m.Mime),
+			URL:           new(up.URL),
+			DirectPath:    new(up.DirectPath),
+			MediaKey:      up.MediaKey,
+			FileEncSHA256: up.FileEncSHA256,
+			FileSHA256:    up.FileSHA256,
+			FileLength:    new(up.FileLength),
+			Width:         new(uint32(m.Width)),
+			Height:        new(uint32(m.Height)),
+			Seconds:       new(uint32(m.Duration)),
+			JPEGThumbnail: m.Thumb,
+			ContextInfo:   ci,
+		}}
+	case api.MsgImage:
+		return &waE2E.Message{ImageMessage: &waE2E.ImageMessage{
 			Caption:       optional(caption),
 			Mimetype:      new(m.Mime),
 			URL:           new(up.URL),
@@ -155,7 +180,7 @@ func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.Outgoing
 			JPEGThumbnail: m.Thumb,
 			ContextInfo:   ci,
 		}}
-	} else {
+	default:
 		doc := &waE2E.DocumentMessage{
 			Caption:       optional(caption),
 			Mimetype:      new(m.Mime),
@@ -170,20 +195,12 @@ func (c *Client) SendMedia(ctx context.Context, chat, id string, m *api.Outgoing
 			JPEGThumbnail: m.Thumb,
 			ContextInfo:   ci,
 		}
-		msg = &waE2E.Message{DocumentMessage: doc}
+		msg := &waE2E.Message{DocumentMessage: doc}
 		if caption != "" {
-			msg = &waE2E.Message{DocumentWithCaptionMessage: &waE2E.FutureProofMessage{Message: msg}}
+			return &waE2E.Message{DocumentWithCaptionMessage: &waE2E.FutureProofMessage{Message: msg}}
 		}
+		return msg
 	}
-	if _, err := cli.SendMessage(ctx, to, msg, whatsmeow.SendRequestExtra{ID: id}); err != nil {
-		return nil, fmt.Errorf("wa: send media: %w", err)
-	}
-	return &api.MediaRef{
-		Chat: chat, ID: id, Type: typ, Mime: m.Mime,
-		DirectPath: up.DirectPath, URL: up.URL, MediaKey: up.MediaKey,
-		FileSHA256: up.FileSHA256, FileEncSHA256: up.FileEncSHA256,
-		FileLength: up.FileLength, FileName: m.FileName,
-	}, nil
 }
 
 func optional(s string) *string {

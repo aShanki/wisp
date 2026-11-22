@@ -12,7 +12,8 @@ may break WhatsApp's terms of service.
 
 Requirements: Go 1.26, Qt 6.9+ (Quick, QuickControls2, Svg, Multimedia), CMake, Ninja, and
 a desktop with a notification server, a StatusNotifierItem tray and PipeWire.
-`make install` also needs curl, jq and ffmpeg. On Ubuntu 26.04 / Debian:
+`make install` also needs curl, jq and ffmpeg. Wisp uses ffmpeg and ffprobe
+from PATH to prepare MP4 video messages and generate thumbnails for cached clips. On Ubuntu 26.04 / Debian:
 
     sudo apt install golang-go cmake ninja-build g++ \
         qt6-base-dev qt6-declarative-dev qt6-svg-plugins qt6-multimedia-dev \

@@ -160,7 +160,8 @@ QVariant MessageModel::data(const QModelIndex &index, int role) const
     case MediaLoadingRole: return m.mediaLoading;
     case MediaProgressRole: return m.mediaProgress;
     case ThumbSourceRole:
-        return m.hasThumb ? u"image://wisp/thumb/%1/%2"_s.arg(m_chat, m.id) : QString();
+        return m.hasThumb || (m.type == "video"_L1 && !m.path.isEmpty())
+            ? u"image://wisp/thumb/%1/%2"_s.arg(m_chat, m.id) : QString();
     case MediaSourceRole:
         return m.isImage ? u"image://wisp/media/%1/%2"_s.arg(m_chat, m.id) : QString();
     case MediaUrlRole: return m.path.isEmpty() ? QUrl() : QUrl::fromLocalFile(m.path);
@@ -225,13 +226,20 @@ MessageModel::Msg MessageModel::parse(const QJsonObject &o)
     const QJsonObject md = o["media"_L1].toObject();
     if (!md.isEmpty()) {
         m.hasMedia = true;
-        m.isImage = md["mime"_L1].toString().startsWith("image/"_L1);
+        const QString mime = md["mime"_L1].toString().section(u';', 0, 0).trimmed().toLower();
+        m.isImage = mime.startsWith("image/"_L1);
         m.hasThumb = md["hasThumb"_L1].toBool();
         m.size = md["size"_L1].toInteger();
         m.width = md["width"_L1].toInt();
         m.height = md["height"_L1].toInt();
         m.duration = md["duration"_L1].toInt();
         m.fileName = md["fileName"_L1].toString();
+        // Older releases sent MP4s as documents. Render them with the video
+        // player while the daemon still uses the document key for downloads.
+        if (m.type == "document"_L1 && (mime == "video/mp4"_L1
+                || ((mime.isEmpty() || mime == "application/octet-stream"_L1)
+                    && m.fileName.endsWith(".mp4"_L1, Qt::CaseInsensitive))))
+            m.type = u"video"_s;
         m.path = md["path"_L1].toString();
         m.waveform = QByteArray::fromBase64(md["waveform"_L1].toString().toLatin1());
     }
@@ -356,7 +364,9 @@ void MessageModel::replace(int row, Msg &&n)
     if (n.waveform != m.waveform) roles << MediaWaveformRole;
     if (n.fileName != m.fileName) roles << MediaFileNameRole;
     if (n.size != m.size) roles << MediaSizeRole;
-    if (n.hasThumb != m.hasThumb) roles << ThumbSourceRole;
+    if (n.hasThumb != m.hasThumb || (n.type == "video"_L1) != (m.type == "video"_L1)
+            || (n.type == "video"_L1 && n.path.isEmpty() != m.path.isEmpty()))
+        roles << ThumbSourceRole;
     if (n.isImage != m.isImage) roles << MediaSourceRole;
     if (n.path != m.path) roles << MediaUrlRole;
     const bool regroup = n.timestamp != m.timestamp || n.type != m.type;
@@ -408,8 +418,11 @@ void MessageModel::setMediaPath(const QString &id, const QString &path)
         return;
     Msg &m = m_rows[row];
     QList<int> roles;
-    if (m.path != path)
+    if (m.path != path) {
         roles << MediaUrlRole;
+        if (m.type == "video"_L1 && m.path.isEmpty() != path.isEmpty())
+            roles << ThumbSourceRole;
+    }
     m.path = path;
     if (m.mediaLoading) {
         m.mediaLoading = false;

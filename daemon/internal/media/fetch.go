@@ -78,7 +78,7 @@ func (c *Cache) Put(ctx context.Context, ref *api.MediaRef, data []byte) (string
 }
 
 // Thumb returns a small JPEG for the message: the embedded thumbnail bytes if
-// given, else one generated from the cached full image, else api.ErrNotFound.
+// given, else one generated from the cached image or MP4, else api.ErrNotFound.
 func (c *Cache) Thumb(ctx context.Context, ref *api.MediaRef, embedded []byte) (string, error) {
 	if err := checkRef(ref); err != nil {
 		return "", err
@@ -103,7 +103,13 @@ func (c *Cache) Thumb(ctx context.Context, ref *api.MediaRef, embedded []byte) (
 		if !ok {
 			return "", api.ErrNotFound
 		}
-		data, err := thumbFromFile(src, thumbMaxPx, thumbQuality)
+		var data []byte
+		var err error
+		if isMP4(r.Mime, r.FileName) {
+			data, err = videoThumbnail(ctx, src, thumbMaxPx)
+		} else {
+			data, err = thumbFromFile(src, thumbMaxPx, thumbQuality)
+		}
 		if err != nil {
 			c.log.Debug("thumb generation failed", "path", src, "err", err)
 			return "", fmt.Errorf("%w: %v", api.ErrNotFound, err)

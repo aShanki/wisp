@@ -25,6 +25,7 @@
 #include <QSet>
 #include <QMimeData>
 #include <QMediaPlayer>
+#include <QSignalSpy>
 #include <QPalette>
 #include <QProcess>
 #include <QQmlApplicationEngine>
@@ -126,6 +127,7 @@ private slots:
     void escapeClosesChat();
     void readOnlyChat();
     void imageViewer();
+    void mp4DocumentPreview();
     void olderPages();
     void scrollMotion();
     void mouseDrag();
@@ -1742,6 +1744,27 @@ void UiTest::voiceNote()
         const QRectF w = sceneRect(waveform).translated(-bubble.topLeft());
         QCOMPARE(w, fromMe ? QRectF(122, 19, 200, 24) : QRectF(60, 19, 192, 24));
     }
+}
+
+void UiTest::mp4DocumentPreview()
+{
+    MessageModel model;
+    model.reset(u"test-chat"_s);
+    model.upsert({{u"id"_s, u"clip"_s}, {u"type"_s, u"document"_s},
+                  {u"media"_s, QJsonObject{{u"mime"_s, u"video/mp4"_s}, {u"fileName"_s, u"clip.mp4"_s}}}});
+    const QModelIndex clip = model.index(0);
+    QCOMPARE(clip.data(MessageModel::TypeRole).toString(), u"video"_s);
+    QVERIFY(clip.data(MessageModel::ThumbSourceRole).toString().isEmpty());
+
+    QSignalSpy changed(&model, &QAbstractItemModel::dataChanged);
+    model.setMediaPath(u"clip"_s, m_dir + u"/clip.mp4"_s);
+    QCOMPARE(changed.size(), 1);
+    QVERIFY(changed.at(0).at(2).value<QList<int>>().contains(MessageModel::ThumbSourceRole));
+    QCOMPARE(clip.data(MessageModel::ThumbSourceRole).toString(), u"image://wisp/thumb/test-chat/clip"_s);
+
+    model.upsert({{u"id"_s, u"notes"_s}, {u"type"_s, u"document"_s},
+                  {u"media"_s, QJsonObject{{u"mime"_s, u"application/pdf"_s}, {u"fileName"_s, u"notes.pdf"_s}}}});
+    QCOMPARE(model.index(model.indexOf(u"notes"_s)).data(MessageModel::TypeRole).toString(), u"document"_s);
 }
 
 void UiTest::voicePlayback()

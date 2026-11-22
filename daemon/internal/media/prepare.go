@@ -22,7 +22,7 @@ const (
 
 // Prepare reads a local file for sending. JPEG and PNG files that decode go
 // as images, stripped of metadata, with dimensions and a small JPEG
-// thumbnail; everything else goes as a document.
+// thumbnail. Recognized MP4 clips go as videos; other files go as documents.
 func (c *Cache) Prepare(ctx context.Context, path string) (*api.OutgoingMedia, error) {
 	if path == "" {
 		return nil, api.InvalidParams("path is required")
@@ -55,6 +55,15 @@ func (c *Cache) Prepare(ctx context.Context, path string) (*api.OutgoingMedia, e
 
 	m := detectMime(path, data)
 	om := &api.OutgoingMedia{Type: api.MsgDocument, Mime: m, FileName: filepath.Base(path), Data: data}
+	if m == "video/mp4" || baseMime(http.DetectContentType(data)) == "video/mp4" {
+		if err := prepareMP4(ctx, om); err != nil {
+			c.log.Debug("prepare: MP4 sent as document", "path", path, "err", err)
+		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		return om, nil
+	}
 	if m != "image/jpeg" && m != "image/png" {
 		return om, nil
 	}

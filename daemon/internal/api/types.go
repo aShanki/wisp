@@ -265,13 +265,14 @@ type ReplyRef struct {
 
 // OutgoingMedia is a prepared file ready for upload (built by media.Prepare).
 type OutgoingMedia struct {
-	Type     string // MsgImage, MsgSticker or MsgDocument
+	Type     string // MsgImage, MsgVideo, MsgSticker or MsgDocument
 	Mime     string
 	FileName string
 	Data     []byte
 	Thumb    []byte // small JPEG, may be nil
 	Width    int
 	Height   int
+	Duration int  // seconds, MsgVideo only
 	Animated bool // MsgSticker only
 }
 

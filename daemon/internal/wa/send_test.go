@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"testing"
 
+	"go.mau.fi/whatsmeow"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 
@@ -70,5 +71,25 @@ func TestMentionLIDs(t *testing.T) {
 	})
 	if text != "@901 @61400000002 @614000000010" || !reflect.DeepEqual(jids, []types.JID{aliceLID, bobPN, aliceLID}) {
 		t.Fatalf("text %q jids %v", text, jids)
+	}
+}
+
+func TestUploadedVideoMessage(t *testing.T) {
+	m := &api.OutgoingMedia{Type: api.MsgVideo, Mime: "video/mp4", Width: 1920, Height: 1080,
+		Duration: 12, Thumb: []byte{1, 2}}
+	up := whatsmeow.UploadResponse{DirectPath: "/video", FileLength: 123, MediaKey: []byte{3, 4}}
+	ci := replyContext(&api.ReplyRef{ID: "Q1", Sender: alicePN.String()}, group)
+	wire := uploadedMediaMessage(m, up, "Clip", ci)
+	var got api.Message
+	if ctx := fillContent(&got, wire); ctx != ci {
+		t.Fatalf("video context: %v", ctx)
+	}
+	if got.Type != api.MsgVideo || got.Text != "Clip" || got.Media == nil || !got.Media.HasThumb ||
+		got.Media.Width != 1920 || got.Media.Height != 1080 || got.Media.Duration != 12 {
+		t.Fatalf("parsed video: %+v, media %+v", got, got.Media)
+	}
+	if got.MediaRef == nil || got.MediaRef.DirectPath != "/video" ||
+		!reflect.DeepEqual(got.MediaRef.MediaKey, up.MediaKey) || mediaType(got.MediaRef.Type) != whatsmeow.MediaVideo {
+		t.Fatalf("video download ref: %+v", got.MediaRef)
 	}
 }
