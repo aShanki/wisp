@@ -104,6 +104,7 @@ func (c *Client) onEvent(cli *whatsmeow.Client, raw any) {
 	switch v := raw.(type) {
 	case *events.Connected:
 		c.offlineSync.Store(false)
+		c.offlineConnected()
 		c.mu.Lock()
 		if c.cli == cli {
 			c.auth = api.AuthPaired
@@ -117,9 +118,15 @@ func (c *Client) onEvent(cli *whatsmeow.Client, raw any) {
 		}
 	case *events.Disconnected:
 		c.setConn(api.ConnDisconnected)
+		c.startRedial()
 	case *events.KeepAliveTimeout:
 		if v.ErrorCount >= 2 {
 			c.setConn(api.ConnConnecting)
+		}
+		if time.Since(v.LastSuccess) > keepAliveMaxFail {
+			// The socket is dead (e.g. the network changed). This drops it
+			// and emits events.Disconnected, which redials.
+			go cli.ResetConnection()
 		}
 	case *events.KeepAliveRestored:
 		c.setConn(api.ConnConnected)
@@ -155,10 +162,13 @@ func (c *Client) onEvent(cli *whatsmeow.Client, raw any) {
 		c.log.Warn("pairing failed", "err", v.Error)
 	case *events.OfflineSyncPreview:
 		c.offlineSync.Store(true)
+		c.offlinePreview(cli, v)
 	case *events.OfflineSyncCompleted:
 		c.offlineSync.Store(false)
+		c.offlineDone(v)
 
 	case *events.Message:
+		c.offlineMessage()
 		c.handleMessage(cli, v)
 	case *events.UndecryptableMessage:
 		c.log.Debug("undecryptable message", "id", v.Info.ID, "chat", v.Info.Chat)

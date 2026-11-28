@@ -23,7 +23,7 @@ func New(ctx context.Context, cfg Config) (*Core, error) {
 	if err != nil {
 		return nil, err
 	}
-	w, err := wa.New(ctx, wa.Config{DBPath: waPath, Log: cfg.Log})
+	w, err := wa.New(ctx, wa.Config{DBPath: waPath, Log: cfg.Log, WatchResume: true})
 	if err != nil {
 		st.Close()
 		return nil, err

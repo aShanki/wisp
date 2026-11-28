@@ -27,6 +27,10 @@ import (
 type Config struct {
 	Seed     int64
 	Traffic  time.Duration // mean gap between incoming messages; 0 = none
+	// Backlog delivers this many messages at once, BacklogAfter after start,
+	// like the replay after a long sleep (0 = none).
+	Backlog      int
+	BacklogAfter time.Duration
 	Unpaired bool          // start unpaired and walk through the QR flow
 	Log      *slog.Logger
 }
@@ -111,6 +115,9 @@ func New(cfg Config) *Backend {
 	}
 	if cfg.Traffic > 0 {
 		b.after(cfg.Traffic, b.incomingTraffic)
+	}
+	if cfg.Backlog > 0 {
+		b.after(cfg.BacklogAfter, func() { b.backlog(cfg.Backlog, log) })
 	}
 	return b
 }
@@ -774,6 +781,20 @@ func (b *Backend) receive(c *chat) {
 		m.Sender, m.SenderName = personJID(p), personName(p)
 	}
 	b.add(c, m)
+}
+
+// backlog replays n messages across the 20 most recent chats as fast as
+// possible, between connecting and connected, like a catch-up after sleep.
+func (b *Backend) backlog(n int, log *slog.Logger) {
+	b.emit(api.EConnectionState, api.ConnectionStateEvent{State: api.ConnConnecting})
+	start := time.Now()
+	cs := b.sorted()
+	cs = cs[:min(20, len(cs))]
+	for i := range n {
+		b.receive(cs[i%len(cs)])
+	}
+	b.emit(api.EConnectionState, api.ConnectionStateEvent{State: api.ConnConnected})
+	log.Info("mock: backlog delivered", "messages", n, "took", time.Since(start).Round(time.Millisecond))
 }
 
 // incomingTraffic delivers a message to a recently active chat, then reschedules.

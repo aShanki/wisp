@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"runtime/debug"
 	"syscall"
+	"time"
 
 	"wisp/daemon/internal/api"
 	"wisp/daemon/internal/core"
@@ -30,6 +31,8 @@ func main() {
 		socket   = flag.String("socket", "", "socket path (default $WISP_SOCKET or $XDG_RUNTIME_DIR/wisp.sock)")
 		dataDir  = flag.String("data", defaultDataDir(), "data directory")
 		traffic  = flag.Duration("mock-traffic", 0, "mock: mean gap between incoming messages (0 = none)")
+		backlog  = flag.Int("mock-backlog", 0, "mock: deliver this many messages at once, like a catch-up after sleep")
+		blAfter  = flag.Duration("mock-backlog-after", 5*time.Second, "mock: when to deliver -mock-backlog")
 		unpaired = flag.Bool("mock-unpaired", false, "mock: start unpaired and walk through the QR flow")
 		verbose  = flag.Bool("v", false, "debug logging")
 		trayOn   = flag.Bool("tray", false, "mock: show the tray icon (always shown otherwise)")
@@ -72,7 +75,7 @@ func main() {
 		openUI  func(chat, token string)
 	)
 	if *mockMode {
-		m := mock.New(mock.Config{Seed: 1, Traffic: *traffic, Unpaired: *unpaired, Log: log})
+		m := mock.New(mock.Config{Seed: 1, Traffic: *traffic, Backlog: *backlog, BacklogAfter: *blAfter, Unpaired: *unpaired, Log: log})
 		backend, done, closeFn = m, m.Done(), m.Close
 	} else {
 		if os.Getenv("GOMEMLIMIT") == "" {
