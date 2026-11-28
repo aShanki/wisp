@@ -20,6 +20,10 @@ TextField {
     font.pixelSize: 15
     ContextMenu.menu: null
     ContextMenu.onRequested: position => textMenu.openAt(position.x, position.y)
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: eventPoint => textMenu.openAt(eventPoint.position.x, eventPoint.position.y)
+    }
 
     TextMenu {
         id: textMenu
