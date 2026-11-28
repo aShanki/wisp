@@ -20,12 +20,16 @@ import (
 	_ "modernc.org/sqlite"
 
 	"wisp/daemon/internal/api"
+	"wisp/daemon/internal/resume"
 )
 
 // Config configures the WhatsApp client.
 type Config struct {
 	DBPath string       // whatsmeow device store (wa.db)
 	Log    *slog.Logger // nil = slog.Default()
+	// WatchResume reconnects as soon as the system wakes from sleep
+	// (logind's PrepareForSleep on the system bus).
+	WatchResume bool
 }
 
 // Client implements api.WA.
@@ -45,8 +49,10 @@ type Client struct {
 	qrReady       chan struct{} // closed when the first QR code of a flow arrives (or the flow ends)
 	lastQR        api.EvQR
 	groupsFetched bool
+	redialKick    chan struct{} // non-nil while redial runs; see reconnect.go
 
 	offlineSync atomic.Bool // true while whatsmeow replays messages received while we were offline
+	off         offlineStats
 
 	retryMu sync.Mutex
 	retries map[types.MessageID]chan *events.MediaRetry // media retries waiting for the phone
@@ -81,7 +87,12 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	log = log.With("component", "wa")
 	setDeviceProps()
 
-	dsn := "file:" + cfg.DBPath + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+	// synchronous(NORMAL) like wisp.db: whatsmeow commits several times per
+	// incoming stanza, one stanza at a time, and a full fsync per commit
+	// (~1.2ms vs ~0.05ms) adds seconds to the replay after a long sleep. WAL
+	// stays consistent; a power cut can lose the last commits, which
+	// WhatsApp's retry receipts recover from.
+	dsn := "file:" + cfg.DBPath + "?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)"
 	container, err := sqlstore.New(ctx, "sqlite", dsn, newWALog(log, "store"))
 	if err != nil {
 		return nil, fmt.Errorf("wa: open device store: %w", err)
@@ -105,14 +116,19 @@ func New(ctx context.Context, cfg Config) (*Client, error) {
 	} else {
 		c.auth = api.AuthUnpaired
 	}
+	if cfg.WatchResume {
+		resume.Watch(c.ctx, log, c.resumed)
+	}
 	return c, nil
 }
 
 // newWAClient makes a whatsmeow client. c.mu must be held once c is shared.
 func (c *Client) newWAClient(dev *store.Device) *whatsmeow.Client {
 	cli := whatsmeow.NewClient(dev, newWALog(c.log, "client"))
-	cli.EnableAutoReconnect = true
-	cli.InitialAutoReconnect = true
+	// Reconnecting is ours (reconnect.go). whatsmeow still emits
+	// events.Disconnected when the socket drops.
+	cli.EnableAutoReconnect = false
+	cli.InitialAutoReconnect = false
 	cli.EmitAppStateEventsOnFullSync = true
 	cli.AutomaticMessageRerequestFromPhone = true
 	cli.SetMediaHTTPClient(newMediaHTTP())
@@ -201,7 +217,8 @@ func (c *Client) Connect(ctx context.Context) error {
 	}
 	if err != nil {
 		c.setConn(api.ConnDisconnected)
-		return fmt.Errorf("wa: connect: %w", err)
+		c.startRedial()
+		return fmt.Errorf("wa: connect (retrying): %w", err)
 	}
 	return nil
 }
